@@ -1,0 +1,59 @@
+Read twitter home feed, favorite posts that make me chuckle.
+
+<<Get home stream
+	Convert to array if necessary
+	iterate through stream
+	if passes chuckle factor
+	console.log(haha)
+	add favorite
+
+	getFrequency:
+		get number of seconds between first and most recent favorite
+		divide by number of favorites
+		setInterval(result*1000);	
+
+	Challenge: how to evaluate chuckle factor?
+
+		For each tweet:
+			check if tweet is from list of people who have made pre-favorited tweets  (more favorites per user = higher influence)
+			check if tweet has an image or link
+			check how many times tweet has already been favorited by people I follow
+			add those up to determine favorite likelihood
+			generate random number
+			check if number beats likelyhood
+				favorite
+			else no favorite
+
+Retweet posts that have links to important things.
+
+Respond or favorite when people mention me.
+
+Follow people followed by at least 15 people I already follow.
+
+Follow people who mention "web development", "digital art", "phd", "game development", "critic", "writer", "art"&&"technology" in their descriptions.
+
+	Get interval: get number of milliseconds since creation of account. Get number of people I follow
+	interval = age/numFriends
+	
+	Get home feed
+	compare user names to list of people I follow
+	if not found, evaluate description and tweets
+		if good concepts/keywords found, then follow
+
+	MAYBE BETTER IDEA - comparing concepts and keywords
+		is a crap shoot. Identifiable phrases = usernames I follow.
+		Maybe look through tweets for mentions of my friends,
+		more mentions = more likely to follow?
+
+	Best idea: get list of suggested users.
+			   check how many of my friends follow each.
+			   Create weighted array.
+			   randomly select a user to follow.
+
+The above + female = more likely to follow
+
+The above plus follow people I follow = more likely to follow
+
+Tweet things about my day (maybe get feed from google location services to know where I am?)
+
+Tweet things about technology and art and programming and games and game development (make new tweets from my speech patterns + what is trending among my friends?)

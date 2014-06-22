@@ -1,0 +1,1 @@
+Twotto is a twitter bot that automates playbor, leaving the social-media worker free to pursue leisure activities.
