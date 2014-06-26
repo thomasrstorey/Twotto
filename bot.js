@@ -75,10 +75,10 @@ var Bot = module.exports = function(config){
 			var friendids = [];
 			getAllFriends(myid, friendids, -1, function(frids){
 				twit.get('users/show', {user_id: myid}, function(err, mydata){
-					var start = mydata.created_at;
+					var start = new Date(mydata.created_at);
 					var end = new Date();
 
-					var span = start.getTime() - end.getTime();
+					var span = end.getTime() - start.getTime();
 					var interval = span / frids.length;
 					return callback(interval);
 				})
@@ -209,6 +209,10 @@ var Bot = module.exports = function(config){
 
 	var getAllFollowers = function(userid, followerids, nextCursor, count, callback){
 		twit.get('followers/ids', {user_id: userid, cursor: nextCursor}, function(err, followers){
+			if(err){
+				console.log("error: " + err);
+				return callback(followerids);
+			}
 			followerids.push.apply(followerids, followers.ids);
 			nextCursor = followers.next_cursor_str;
 			if(nextCursor != "0"){
@@ -238,6 +242,7 @@ var Bot = module.exports = function(config){
 	that.getFavData = getFavData;
 	that.favTweet = favTweet;
 	that.getFavInterval = getFavInterval;
+	that.getFollowInterval = getFollowInterval;
 	that.followUser = followUser;
 
 	return that;
@@ -251,8 +256,14 @@ bot.getFavInterval(function(favInterval){
 
 	console.log("Bot running. Will fav a tweet every " + favInterval + " milliseconds");
 
-	setInterval(bot.favTweet(), favInterval);
+	//setInterval(bot.favTweet(), favInterval);
 
+});
+
+bot.getFollowInterval(function(followInterval){
+	console.log("Follow interval = " + followInterval);
+
+	bot.followUser();
 });
 
 

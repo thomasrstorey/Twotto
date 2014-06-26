@@ -137,6 +137,12 @@ var Program = module.exports = function(config){
 		});
 	};
 
+	var getRelations = function (input){
+		alchemyapi.relations('text', input, {}, function(response){
+			console.log(response.relations);
+		});
+	}
+
 	var selfAnalysis = function (){	
 		getAuthUserId(function(myid, data){
 			var tweets = "";
@@ -153,6 +159,12 @@ var Program = module.exports = function(config){
 		});
 	}
 
+	var getTweetRelations = function(){
+		getAuthUserId(function(myid, data){
+			getRelations(data[Math.floor(Math.random()*(data.length-1)+1)].text);
+		});
+	}
+
 	var getAuthUserId = function(callback){
 		var myid;
 		twit.get('statuses/user_timeline', {include_rts: false}, function(err, data){
@@ -164,13 +176,15 @@ var Program = module.exports = function(config){
 	that.analyzeUser = analyzeUser;
 	that.selfAnalysis = selfAnalysis;
 	that.followUser = followUser;
+	that.getTweetRelations = getTweetRelations;
 	return that;
 }
 
 var program = new Program(config);
 //program.analyzeUser();
 //program.selfAnalysis();
-program.followUser();
+//program.followUser();
+program.getTweetRelations();
 
 function randIndex (arr) {
   var index = Math.floor(arr.length*Math.random());
