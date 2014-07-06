@@ -1,5 +1,11 @@
 var Twit = require('twit');
+var _ = require('underscore');
 var config = require('./config');
+var MongoClient = require('mongodb').MongoClient;
+var format = require('util').format;
+var AlchemyAPI = require('./alchemyapi_node/alchemyapi');
+var alchemyapi = new AlchemyAPI();
+
 
 ///////////////////////////////
 
@@ -70,6 +76,26 @@ var Bot = module.exports = function(config){
 		});
 	};
 
+	var getRTInterval = function(callback){
+		twit.get('statuses/user_timeline', {include_rts: true, count: 200}, function(err, data){
+			var rts = [];
+			for (var i = data.length - 1; i >= 0; i--) {
+				if(data[i].retweeted){
+					rts.push(data[i]);
+				}
+			};
+			if(rts.length >= 2){
+				var start = new Date(rts[rts.length-1].created_at);
+				var end = new Date(rts[0].created_at);
+				var span = start.getTime() - end.getTime();
+				var interval = span / rts.length;
+				return callback(interval);
+			} else{
+				return callback(-1);
+			}
+		});
+	}
+
 	var getFollowInterval = function(callback){
 		getAuthUserId(function(myid, data){
 			var friendids = [];
@@ -81,10 +107,292 @@ var Bot = module.exports = function(config){
 					var span = end.getTime() - start.getTime();
 					var interval = span / frids.length;
 					return callback(interval);
-				})
+				});
 			});
 		});
 	}
+
+	var getFullUserTimeline = function (callback, tweetData, maxId){
+		//returns up to 3000 texts extracted from user_timeline
+		tweetData = tweetData || [];
+		twit.get('statuses/user_timeline', {count: 200, include_rts: true, trim_user: true, max_id: maxId}, function(err, res){
+			if(err){
+				console.log("ERROR: " + err.data);
+			}
+			if(res.length > 0){
+				tweetData.push.apply(tweetData, getMyTweetsText(res));
+				maxId = _.last(res).id_str;
+			}
+			if(tweetData.length >= 3000 || res.length === 1){
+				
+				return callback(tweetData);
+			} else{
+				console.log("\n");
+				console.log("RECURSE");
+				console.log("\n");
+				return getFullUserTimeline(callback, tweetData, maxId);
+			}
+		}); 
+	};
+
+	var getMyTweetsText = function(responseData, myTweetsArr){
+		//this function will return an array of strings
+		//each string will be the text element from a tweet
+		//object from the user_timeline
+		myTweetsArr = myTweetsArr || [];
+		myTweetsArr.push(responseData[0].text);
+		var remainingResponse = responseData.slice(1);
+		if(remainingResponse.length === 0){
+			return myTweetsArr;
+		}else{
+			return getMyTweetsText(remainingResponse, myTweetsArr);
+		}
+	};
+
+	var getAllRelations = function (inputArr, callback){
+		getRelations(inputArr[0], function(relations){
+			var relationsObject = parseRelations(relations);
+			insertTextDB(relationsObject);
+			var remainingInput = inputArr.slice(1);
+			if(remainingInput.length === 0){
+				return callback();
+			}
+			else{
+				return getAllRelations(remainingInput, callback);
+			}
+		});
+	}
+
+	var getRelations = function (input, callback){
+		alchemyapi.relations('text', input, {}, function(response){
+			return callback(response.relations);
+		});
+	};
+
+	var parseRelations = function (relationsArr, subjectsArr, actionsArr, objectsArr, locationsArr){
+		subjectsArr = subjectsArr || [];
+		actionsArr = actionsArr || [];
+		objectsArr = actionsArr || [];
+		locationsArr = locationsArr || [];
+
+		subjectsArr = _.reject(pluck(relationsArr, 'subject'), function(item){
+			return typeof item == 'undefined';
+		});
+		actionsArr = _.reject(pluck(relationsArr, 'action'), function(item){
+			return typeof item == 'undefined';
+		});
+		objectsArr = _.reject(pluck(relationsArr, 'object'), function(item){
+			return typeof item == 'undefined';
+		});
+		locationsArr = _.reject(pluck(relationsArr, 'location'), function(item){
+			return typeof item == 'undefined';
+		});
+
+		return {
+			subjects: subjectsArr,
+			actions: actionsArr,
+			objects: objectsArr,
+			locations: locationsArr
+		};
+	};
+
+	var insertTextDB = function(relationsObject){
+		MongoClient.connect("mongodb://localhost:27017/botDB", function(err, db){
+			if(!err){
+				console.log("We are connected!");
+				if(relationsObject.locations.length > 0){
+					console.log(relationsObject.locations);
+				}
+				var subjectcollection = db.collection('bot_subjects');
+				if(relationsObject.subjects.length > 0){
+					subjectcollection.insert(relationsObject.subjects, {w:1}, function(err, result){
+						if(err){
+							console.log(err.data);
+						}else{
+							console.log("Inserted " + result + " docs into bot_subjects");
+						}
+						var actioncollection = db.collection('bot_actions');
+						if(relationsObject.actions.length > 0){
+							actioncollection.insert(relationsObject.actions, {w:1}, function(err, result){
+								if(err){
+									console.log(err.data);
+								}else{
+									console.log("Inserted " + result + " docs into bot_actions");
+								}
+
+								var objectcollection = db.collection('bot_objects');
+								if(relationsObject.objects.length > 0){
+									objectcollection.insert(relationsObject.objects, {w:1}, function(err, result){
+										if (err) {
+											console.log(err.data);
+										}else{
+											console.log("Inserted " + result + " docs into bot_objects");
+										}
+
+										var locationcollection = db.collection('bot_locations');
+										if(relationsObject.locations.length > 0){
+											locationcollection.insert(relationsObject.locations, {w:1}, function(err, result){
+												if (err) {
+													console.log(err.data);
+												}else{
+													console.log("Inserted " + result + " docs into bot_locations");
+												}
+												db.close();
+											});
+										}
+									});
+								}
+							});
+						}
+					});
+				}
+
+			}else{
+				console.log("Error: " + err.data);
+			}
+		});
+	};
+
+	var removeURL = function(text){
+		//this function will remove all URLs from text,
+		//leaving only human speech
+		var urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+    	return text.replace(urlRegex, function(url) {
+        	return '';
+    	});
+	};
+
+
+
+	var rtTweet = function(){
+		readHomeTimeline(function(err, timeline){
+			if(err) return handleError(err);
+			var sortedByRTCount = _.sortBy(timeline, 'retweet_count');
+			var truncatedTop = _.rest(sortedByRTCount, sortedByRTCount.length-10);
+			var cleanTop = cleanRetweets(truncatedTop);
+			var idsAndCounts = combineArrays(pluck(cleanTop, 'retweet_count'), 
+											 pluck(cleanTop, 'id_str'));
+			console.log(idsAndCounts);
+
+			getAuthUserId(function(myid, usertimeline){
+				compareToFriends(myid, idsAndCounts, function(topMatches){
+					var narrowed = _.filter(topMatches, function(item){
+						return item[1] != 0;
+					});
+					if(narrowed){
+						var tweetID = _.sample(narrowed)[0][1];
+						console.log(tweetID);
+						twit.post('statuses/retweet/:id', {id: tweetID}, function(err, res){
+							if(!err){
+								console.log("RETWEETED: \n" + res.text);
+							} else{
+								console.log("ERROR: \n" + err.data);
+							}
+						});
+					} else{
+						console.log("Tried to retweet, but no likely candidates found.");
+					}	
+				});
+			});
+		});
+	};
+
+	var pluck = function(arr, propertyName) {
+  		return arr.map(getItem(propertyName));
+	};
+
+	var getItem = function(propertyName){
+		return function(item){
+			return item[propertyName];
+		}
+	};
+
+	var cleanRetweets = function(tweetArr, cleanArr){
+		cleanArr = cleanArr || [];
+		if(tweetArr[0].retweeted_status){
+			cleanArr.push(tweetArr[0].retweeted_status);
+		} else{
+			cleanArr.push(tweetArr[0]);
+		}
+		tweetArr = tweetArr.slice(1);
+		if(tweetArr.length === 0){
+			return cleanArr;
+		} else{
+	 		return cleanRetweets(tweetArr, cleanArr);
+		}
+	}
+
+	var compareToFriends = function(myid, topTen, callback){
+		getAllFriends(myid, [], -1, function(friendids){
+			compareArrays(topTen, friendids, [], function(matchesArray){
+				var topMatches = combineArrays(topTen, matchesArray);
+				return callback(topMatches);
+			});
+		});
+	};
+
+	var combineArrays = function(left, right, finalArr){
+		finalArr = finalArr || [];
+
+		finalArr.push([left[0], right[0]]);
+
+		var remainingLeft = left.slice(1),
+			remainingRight = right.slice(1);
+
+		if(remainingLeft.length === 0 && remainingRight. length ===0){
+			return finalArr;
+		} else {
+			return combineArrays(remainingLeft, remainingRight, finalArr);
+		}
+	};
+
+	var areEqual = function(a, b){
+		if(a === b){
+			return true;
+		} else{ return false;}
+	};
+
+	//returns array of matches between the retweeters of the top 
+	//retweeted tweets, and the user's friends
+	var compareArrays = function(topTen, friendArr, matchesArr, callback){
+		matchesArr = matchesArr || [];
+		var matches = 0;
+		//console.log("TOP TEN: " + topTen);
+		getAllRTers(topTen[0][1], function(rterids){
+			if(rterids){
+				console.log(rterids.length);
+				matches = getMatches(rterids, friendArr, 0);
+			}
+			var remainingTop = topTen.slice(1);
+			matchesArr.push(matches);
+			if(remainingTop.length === 0){
+				return callback(matchesArr);
+			} else{
+				return compareArrays(remainingTop, friendArr, matchesArr, callback);
+			}
+		});
+		
+	};
+
+	//returns the number of element matches between two arrays
+	var getMatches = function(left, right, matches){
+		
+		matches += _.reduce(left, function(memo, item){
+			//console.log("ITEM: " + item + " RIGHT: " + right[0]);
+			if(areEqual(item, right[0])){
+				console.log("MATCH!");
+				return memo + 1;
+			}else{
+				return memo;
+			};
+		}, 0);
+		var remainingRight = right.slice(1);
+		if(remainingRight.length === 0){
+			return matches;
+		} else{
+			return getMatches(left, remainingRight, matches);
+		}
+	};
 
 	var favTweet = function(){
 		readHomeTimeline(function(err, timeline){
@@ -226,7 +534,8 @@ var Bot = module.exports = function(config){
 	};
 
 	var getAllFriends = function(userid, friendids, nextCursor, callback){
-		twit.get('friends/ids', {user_id: userid, cursor: nextCursor}, function(err, friends){
+		friendids = friendids || [];
+		twit.get('friends/ids', {user_id: userid, cursor: nextCursor, stringify_ids: true}, function(err, friends){
 			friendids.push.apply(friendids, friends.ids);
 			nextCursor = friends.next_cursor_str;
 			if(nextCursor != "0"){
@@ -237,13 +546,29 @@ var Bot = module.exports = function(config){
 		});
 	};
 
+	var getAllRTers = function(tweetid, callback, rterids){
+		rterids = rterids || [];
+		twit.get('statuses/retweeters/ids', {id: tweetid, stringify_ids: true}, function(err, retweeters){
+			if(err){
+				console.log("error: " + err);
+				return callback(null);
+			}
+			return callback(retweeters.ids);
+		});
+	};
+
 	that.tweet = tweet;
 	that.readHomeTimeline = readHomeTimeline;
 	that.getFavData = getFavData;
 	that.favTweet = favTweet;
 	that.getFavInterval = getFavInterval;
 	that.getFollowInterval = getFollowInterval;
+	that.getRTInterval = getRTInterval;
 	that.followUser = followUser;
+	that.rtTweet = rtTweet;
+	that.insertTextDB = insertTextDB;
+	that.getFullUserTimeline = getFullUserTimeline;
+	that.getAllRelations = getAllRelations;
 
 	return that;
 }
@@ -252,11 +577,11 @@ var Bot = module.exports = function(config){
 
 var bot = new Bot(config);
 
-bot.getFavInterval(function(favInterval){
+/*bot.getFavInterval(function(favInterval){
 
 	console.log("Bot running. Will fav a tweet every " + favInterval + " milliseconds");
 
-	//setInterval(bot.favTweet(), favInterval);
+	setInterval(bot.favTweet(), favInterval);
 
 });
 
@@ -264,6 +589,17 @@ bot.getFollowInterval(function(followInterval){
 	console.log("Follow interval = " + followInterval);
 
 	bot.followUser();
+});
+
+bot.getRTInterval(function(rtInterval){
+	console.log("RTInterval = " + rtInterval);
+	bot.rtTweet();
+});*/
+
+bot.getFullUserTimeline(function(tweetsTextArr){
+	bot.getAllRelations(tweetsTextArr, function(){
+		console.log("done");
+	});
 });
 
 
