@@ -112,6 +112,16 @@ var Bot = module.exports = function(config){
 		});
 	}
 
+	var getTweetInterval = function(callback){
+		getAuthUserId(function(myid, data){
+			var last = new Date(_.first(data).created_at);
+			var first = new Date(_.last(data).created_at);
+			var span = last.getTime() - first.getTime();
+			var interval = span / data.length;
+			return callback(interval);
+		}
+	}
+
 	var getFullUserTimeline = function (callback, tweetData, maxId){
 		//returns up to 3000 texts extracted from user_timeline
 		tweetData = tweetData || [];
@@ -196,13 +206,42 @@ var Bot = module.exports = function(config){
 		};
 	};
 
+	var composeTweetText = function(){
+		MongoClient.connect("mongodb://localhost:27017/botDB", function(err, db){
+			var subject,
+				object,
+				action,
+				location;
+
+			if(!err){
+				var subjectcollection = db.collection('bot_subjects');
+				var actioncollection = db.collection('bot_actions');
+				var objectcollection = db.collection('bot_objects');
+				var locationcollection = db.collection('bot_locations');
+				subjectcollection.find().toArray(function(err, subjects){
+					if(!err) subject = _.sample(subjects).text;
+					actioncollection.find().toArray(function(err, actions){
+						if(!err) action = _.sample(actions).text;
+						objectcollection.find().toArray(function(err, objects){
+							if(!err) object = _.sample(objects).text;
+							locationcollection.find().toArray(function(err, locations){
+								if(!err) location = _.sample(locations).text;
+
+								console.log(subject + " " + action + " " + object);
+								db.close();
+
+							});
+						});
+					});
+				});
+			}
+		});
+	};
+
 	var insertTextDB = function(relationsObject){
 		MongoClient.connect("mongodb://localhost:27017/botDB", function(err, db){
 			if(!err){
 				console.log("We are connected!");
-				if(relationsObject.locations.length > 0){
-					console.log(relationsObject.locations);
-				}
 				var subjectcollection = db.collection('bot_subjects');
 				if(relationsObject.subjects.length > 0){
 					subjectcollection.insert(relationsObject.subjects, {w:1}, function(err, result){
@@ -569,6 +608,7 @@ var Bot = module.exports = function(config){
 	that.insertTextDB = insertTextDB;
 	that.getFullUserTimeline = getFullUserTimeline;
 	that.getAllRelations = getAllRelations;
+	that.composeTweetText = composeTweetText;
 
 	return that;
 }
@@ -594,13 +634,15 @@ bot.getFollowInterval(function(followInterval){
 bot.getRTInterval(function(rtInterval){
 	console.log("RTInterval = " + rtInterval);
 	bot.rtTweet();
-});*/
+});
 
 bot.getFullUserTimeline(function(tweetsTextArr){
 	bot.getAllRelations(tweetsTextArr, function(){
 		console.log("done");
 	});
-});
+});*/
+
+bot.composeTweetText();
 
 
 
