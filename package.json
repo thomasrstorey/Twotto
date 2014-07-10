@@ -1,0 +1,21 @@
+{
+  "name": "twotto",
+  "description": "twitter bot",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "express": "4.5.1",
+    "mongodb": "1.4.7",
+    "node-windows": "0.1.5",
+    "twit": "1.1.15",
+    "underscore": "1.6.0",
+    "ejs": "1.0.0",
+    "static-favicon": "~1.0.0",
+    "morgan": "~1.0.0",
+    "cookie-parser": "~1.0.1",
+    "body-parser": "~1.0.0",
+    "debug": "~0.7.4",
+    "passport-twitter": "1.0.2",
+    "passport": "0.2.0"
+  }
+}

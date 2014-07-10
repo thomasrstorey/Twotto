@@ -132,8 +132,7 @@ var Program = module.exports = function(config){
 
 	var getKeywords = function (input) {
 		alchemyapi.keywords('text', input, { 'sentiment':1, 'showSourceText': 1 }, function(response) {
-			console.log(response.text);
-			console.log(response.keywords);
+			console.log(JSON.stringify(response,null,4));
 		});
 	};
 
@@ -173,10 +172,22 @@ var Program = module.exports = function(config){
 		});
 	}
 
+	var analyzeTestTweet = function(text){
+		getKeywords(text);
+	}
+
+	var checkTweet = function(idstr){
+		twit.get('statuses/show/:id', {id: idstr}, function(err, data){
+			console.log(data);
+		})
+	}
+
 	that.analyzeUser = analyzeUser;
 	that.selfAnalysis = selfAnalysis;
 	that.followUser = followUser;
 	that.getTweetRelations = getTweetRelations;
+	that.analyzeTestTweet = analyzeTestTweet;
+	that.checkTweet = checkTweet;
 	return that;
 }
 
@@ -184,7 +195,10 @@ var program = new Program(config);
 //program.analyzeUser();
 //program.selfAnalysis();
 //program.followUser();
-program.getTweetRelations();
+//program.getTweetRelations();
+//program.analyzeTestTweet("I liked giving you only zero vectors");
+program.checkTweet("486887137871007744");
+
 
 function randIndex (arr) {
   var index = Math.floor(arr.length*Math.random());

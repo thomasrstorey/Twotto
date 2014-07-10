@@ -9,7 +9,7 @@ var alchemyapi = new AlchemyAPI();
 
 ///////////////////////////////
 
-var Bot = module.exports = function(config){
+var Bot = module.exports = function(config, requser){
 
 	var twit = new Twit(config);
 	var that = {};
@@ -43,6 +43,7 @@ var Bot = module.exports = function(config){
 
 			var user_array = [];
 			var id_array = [];
+			console.log(data.length);
 
 			for(var i = 0; i < data.length; i++){
 				var name = data[i].user.name;
@@ -53,8 +54,14 @@ var Bot = module.exports = function(config){
 				}
 
 				var id = data[i].id_str;
+				if(data[i].retweeted_status){
+					var retweetedid = data[i].retweeted_status.id_str;
+					id_array.push(retweetedid);
+				}
+
 				if(id_array.indexOf(id) <= -1){
 					id_array.push(id);
+					
 				}
 			}
 			favData.id_array = id_array;
@@ -67,6 +74,10 @@ var Bot = module.exports = function(config){
 
 	var getFavInterval = function(callback){
 		twit.get('favorites/list', {count: 200}, function(err, data){
+			if(err){
+				console.log(err);
+				return callback(30000);
+			}
 			var fTime = new Date(data[0].created_at);
 			var lTime = new Date(data[data.length-1].created_at);
 
@@ -110,7 +121,7 @@ var Bot = module.exports = function(config){
 				});
 			});
 		});
-	}
+	};
 
 	var getTweetInterval = function(callback){
 		getAuthUserId(function(myid, data){
@@ -119,8 +130,8 @@ var Bot = module.exports = function(config){
 			var span = last.getTime() - first.getTime();
 			var interval = span / data.length;
 			return callback(interval);
-		}
-	}
+		});
+	};
 
 	var getFullUserTimeline = function (callback, tweetData, maxId){
 		//returns up to 3000 texts extracted from user_timeline
@@ -206,8 +217,8 @@ var Bot = module.exports = function(config){
 		};
 	};
 
-	var composeTweetText = function(){
-		MongoClient.connect("mongodb://localhost:27017/botDB", function(err, db){
+	var composeTweetText = function(username){
+		MongoClient.connect("mongodb://localhost:27017/" + username + "botDB", function(err, db){
 			var subject,
 				object,
 				action,
@@ -238,8 +249,8 @@ var Bot = module.exports = function(config){
 		});
 	};
 
-	var insertTextDB = function(relationsObject){
-		MongoClient.connect("mongodb://localhost:27017/botDB", function(err, db){
+	var insertTextDB = function(relationsObject, username){
+		MongoClient.connect("mongodb://localhost:27017/" + username + "botDB", function(err, db){
 			if(!err){
 				console.log("We are connected!");
 				var subjectcollection = db.collection('bot_subjects');
@@ -442,29 +453,32 @@ var Bot = module.exports = function(config){
 				var tweetPool = [];
 
 				for(var i = 0; i < timeline.length; i++){
-					var score = 0;
-					var name = timeline[i].user.name;
-					var id = timeline[i].id_str;
-					if(data.user_array.hasOwnProperty(name)){
-						console.log("found one: " + name);
-						score += data[name]*200;
-					}
-					if(timeline[i].entities.urls[0]){
-						score+=10;
-					}
+					if(!timeline[i].favorited){
+						var score = 0;
+						var name = timeline[i].user.name;
+						var id = timeline[i].id_str;
+						if(data.user_array.hasOwnProperty(name)){
+							console.log("found one: " + name);
+							score += data[name]*200;
+						}
+						if(timeline[i].entities.urls[0]){
+							score+=10;
+						}
 
-					if(timeline[i].favorite_count){
-						score += timeline[i].favorite_count;
-					}
+						if(timeline[i].favorite_count){
+							score += timeline[i].favorite_count;
+						}
 
-					if(timeline[i].retweet_count){
-						score += timeline[i].retweet_count;
-					}
+						if(timeline[i].retweet_count){
+							score += timeline[i].retweet_count;
+						}
 
-					for(var j = 0; j < score; j++){
-						tweetPool.push(id);
+						for(var j = 0; j < score; j++){
+							tweetPool.push(id);
+						}
 					}
 				}
+				console.log(data.id_array);
 				console.log(tweetPool.length);
 				do {
 					var tweetToFav = randIndex(tweetPool);
@@ -484,7 +498,7 @@ var Bot = module.exports = function(config){
 		var myid;
 		twit.get('statuses/user_timeline', {include_rts: false}, function(err, data){
 			if(!err)myid = data[0].user.id;
-			return callback(myid, data);
+			return callback(requser.id_str, data);
 		});
 	}
 
@@ -615,34 +629,44 @@ var Bot = module.exports = function(config){
 
 ///////////////////////////////
 
-var bot = new Bot(config);
+//var bot = new Bot(config);
+//var testInterval = 900000 //15 minutes
 
-/*bot.getFavInterval(function(favInterval){
+/*(function fillUserBotDB(){
+	bot.getFullUserTimeline(function(tweetsTextArr){
+		bot.getAllRelations(tweetsTextArr, function(){
+			console.log("done");
+			setTimeout(fillUserBotDB, testInterval);
+		});
+	});
+})();
 
-	console.log("Bot running. Will fav a tweet every " + favInterval + " milliseconds");
 
-	setInterval(bot.favTweet(), favInterval);
+bot.getFavInterval(function(favInterval){
+
+	console.log("Will fav a tweet every " + favInterval + " milliseconds");
+
+	(function favBehavior(favInterval){
+		bot.favTweet();
+		setTimeout(favBehavior, testInterval);
+	})();
 
 });
 
 bot.getFollowInterval(function(followInterval){
-	console.log("Follow interval = " + followInterval);
+	console.log("Will follow a user every " + followInterval + " milliseconds");
 
 	bot.followUser();
 });
 
 bot.getRTInterval(function(rtInterval){
-	console.log("RTInterval = " + rtInterval);
+	console.log("Will retweet a tweet every " + rtInterval + " milliseconds");
 	bot.rtTweet();
 });
 
-bot.getFullUserTimeline(function(tweetsTextArr){
-	bot.getAllRelations(tweetsTextArr, function(){
-		console.log("done");
-	});
-});*/
 
-bot.composeTweetText();
+
+bot.composeTweetText();*/
 
 
 
