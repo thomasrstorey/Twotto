@@ -10,6 +10,7 @@ var config = require('./config');
 var methodOverride = require('method-override');
 var session = require('express-session');
 var Bot = require('./bot');
+var MongoClient = require('mongodb').MongoClient;
 
 var passport = require('passport')
   , TwitterStrategy = require('passport-twitter').Strategy;
@@ -37,13 +38,14 @@ function(token, tokenSecret, profile, done){
 }));
 
 var routes = require('./routes/index');
-var users = require('./routes/users');
-var ping = require('./routes/ping');
 var account = require('./routes/account');
 
 var user;
 
 var app = express();
+var botLoop;
+var botLoops = {};
+var activeBots = {};
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -64,12 +66,18 @@ app.set('port', process.env.PORT || 3000);
 
 // routes
 app.use('/', routes);
-app.use('/ping', ping);
 
 app.get('/account', ensureAuthenticated, function(req, res){
-    res.render('account', { user: req.user,
-                            title: 'Twotto' });
+    var username = req.user.username;
     user = req.user;
+    if(!activeBots.hasOwnProperty(username) || activeBots[username] === null){
+        activeBots[username] = new Bot(config, user);
+        console.log("Made a new bot for " + username + "!");
+    }
+    res.render('account', { user: req.user,
+                            title: 'Twotto',
+                            userLoop: botLoops[req.user.username]||null });
+    
 });
 
 app.get('/auth/twitter', passport.authenticate('twitter'), function(req, res){
@@ -88,9 +96,8 @@ app.get('/logout', function(req, res){
     res.redirect('/');
 });
 
-app.get('/launchbot', function(req, res){
-    
-    var bot = new Bot(config, user);
+app.get('/launchbot/:username', ensureAuthenticated, function(req, res){
+    var username = req.params.username;
     var testInterval = 30000;
     /*bot.tweet('Testing the bot, dont mind me doop de doop', function(err){
         if(err){
@@ -102,19 +109,29 @@ app.get('/launchbot', function(req, res){
         }
     });*/
 
-    bot.getFavInterval(function(favInterval){
+    activeBots[username].getFavInterval(function(favInterval){
 
         console.log("Will fav a tweet every " + favInterval + " milliseconds");
 
         (function favBehavior(favInterval){
-            bot.favTweet();
-            setTimeout(favBehavior, testInterval);
+            activeBots[username].favTweet();
+            botLoop = setTimeout(favBehavior, testInterval);
+            botLoops[req.params.username] = botLoop;
         })();
+        console.log("Started " + req.params.username + "'s twitter bot loop.");
 
     });
 
-    res.send('Launched!');
+    res.render('launchbot', {title: "Twotto", user: req.params.username});
 
+});
+
+app.get('/stopbot/:username', ensureAuthenticated, function(req, res){
+    clearTimeout(botLoops[req.params.username]);
+    console.log("cleared " + req.params.username + "'s twitter bot loop.");
+    botLoops[req.params.username] = null;
+    botLoop = null;
+    res.redirect('/account');
 });
 
 /// catch 404 and forward to error handler

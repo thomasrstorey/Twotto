@@ -5,11 +5,34 @@
     <link rel='stylesheet' href='/stylesheets/style.css' />
   </head>
   <body>
-    <h1>Thanks for using Twotto, <%=user.username%></h1>
+    <h1>Hi, <%= user.username %>.</h1>
+    <%
+      if(userLoop){
+    %>
+    <h3>Bot running.</h3>
+    <% } %>
     <a href='/'>Home</a>
-    <a href='/ping'>Ping</a>
-    <a href='/launchbot'>Launch</a>
+
+    <%
+    if(!userLoop){
+    var launchRequest = '/launchbot/' + user.username;
+    %>
+    <a href='<%= launchRequest %>'>Launch</a>
+    <%
+    } else{
+      var stopRequest = '/stopbot/' + user.username;
+      %>
+      <a href='<%= stopRequest %>'>Stop</a>
+      <% } %>
+
     <a href='/logout'>Logout</a>
-    <p><%=JSON.stringify(user)%></p>
+    <br>
+    <%
+      if(!userLoop){
+    %>
+    <p>Click Launch to start your bot.</p>
+    <% }else{ %>
+     <p>Click Stop to pause your bot.</p>
+    <% } %>
   </body>
 </html>
