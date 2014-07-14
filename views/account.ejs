@@ -12,7 +12,9 @@
     <h3>Bot running.</h3>
     <% } %>
     <a href='/'>Home</a>
+    <a href='/filldb/<%= user.username %>'>Analyze Me</a>
 
+    
     <%
     if(!userLoop){
     var launchRequest = '/launchbot/' + user.username;
@@ -25,6 +27,7 @@
       <a href='<%= stopRequest %>'>Stop</a>
       <% } %>
 
+    
     <a href='/logout'>Logout</a>
     <br>
     <%

@@ -9,10 +9,15 @@ var alchemyapi = new AlchemyAPI();
 
 ///////////////////////////////
 
-var Bot = module.exports = function(config, requser){
+var Bot = module.exports = function(config, req_user, db){
 
 	var twit = new Twit(config);
 	var that = {};
+	var defaultInterval = 21600000;
+	var requser = req_user;
+	var friendsArray;
+
+	//console.log(requser);
 
 	var tweet = function(status, callback){
 		if(typeof status !== 'string'){
@@ -23,12 +28,18 @@ var Bot = module.exports = function(config, requser){
 		twit.post('statuses/update', { status: status }, callback);
 	};
 
+	var updateFriendsArray = function(){
+		getAllFriends(requser._json.id_str, [], -1, 5000, function(friendids){
+			friendsArray = friendids;
+			console.log(requser.username + " now has " + friendsArray.length + " friends.")
+		});
+	};
+
 	var readHomeTimeline = function(callback){
 		twit.get('statuses/home_timeline', {count: 200}, function(err, reply){
 			if(err){
 				return callback(err);
 			}
-			//console.log(reply);
 			return callback(err, reply);
 		});
 	};
@@ -43,7 +54,6 @@ var Bot = module.exports = function(config, requser){
 
 			var user_array = [];
 			var id_array = [];
-			console.log(data.length);
 
 			for(var i = 0; i < data.length; i++){
 				var name = data[i].user.name;
@@ -108,16 +118,25 @@ var Bot = module.exports = function(config, requser){
 	}
 
 	var getFollowInterval = function(callback){
+		console.log("begin getting followinterval");
 		getAuthUserId(function(myid, data){
 			var friendids = [];
-			getAllFriends(myid, friendids, -1, function(frids){
+			console.log("got user id. now get all friends");
+			getAllFriends(myid, friendids, -1, 5000, function(frids){
+				console.log("got all friends. now get my user data.");
 				twit.get('users/show', {user_id: myid}, function(err, mydata){
-					var start = new Date(mydata.created_at);
-					var end = new Date();
+					console.log("got my user data, now get and return interval");
+					if(!err){
+						var start = new Date(mydata.created_at);
+						var end = new Date();
 
-					var span = end.getTime() - start.getTime();
-					var interval = span / frids.length;
-					return callback(interval);
+						var span = end.getTime() - start.getTime();
+						var interval = span / frids.length;
+						return callback(interval);
+					} else {
+						console.log(err);
+						return callback(defaultInterval);
+					}
 				});
 			});
 		});
@@ -133,10 +152,10 @@ var Bot = module.exports = function(config, requser){
 		});
 	};
 
-	var getFullUserTimeline = function (callback, tweetData, maxId){
+	var getFullUserTimeline = function (callback, screenName, tweetData, maxId){
 		//returns up to 3000 texts extracted from user_timeline
 		tweetData = tweetData || [];
-		twit.get('statuses/user_timeline', {count: 200, include_rts: true, trim_user: true, max_id: maxId}, function(err, res){
+		twit.get('statuses/user_timeline', {screen_name: screenName, count: 200, include_rts: true, trim_user: true, max_id: maxId}, function(err, res){
 			if(err){
 				console.log("ERROR: " + err.data);
 			}
@@ -148,10 +167,7 @@ var Bot = module.exports = function(config, requser){
 				
 				return callback(tweetData);
 			} else{
-				console.log("\n");
-				console.log("RECURSE");
-				console.log("\n");
-				return getFullUserTimeline(callback, tweetData, maxId);
+				return getFullUserTimeline(callback, screenName, tweetData, maxId);
 			}
 		}); 
 	};
@@ -170,16 +186,46 @@ var Bot = module.exports = function(config, requser){
 		}
 	};
 
-	var getAllRelations = function (inputArr, callback){
+	var clearDB = function(callback){
+		var subjectcollection = db.collection('bot_subjects');
+		var actioncollection = db.collection('bot_actions');
+		var objectcollection = db.collection('bot_objects');
+		var locationcollection = db.collection('bot_locations');
+		subjectcollection.remove(function(err, result){
+			if(err){
+				console.log(err);
+			}
+			actioncollection.remove(function(err, result){
+				if(err){
+					console.log(err);
+				}
+				objectcollection.remove(function(err, result){
+					if(err){
+						console.log(err);
+					}
+					locationcollection.remove(function(err, result){
+						if(err){
+							console.log(err);
+						}
+						return callback();
+					});
+				});
+			});
+
+		});
+
+	}
+
+	var getAllRelations = function (inputArr, username, callback){
 		getRelations(inputArr[0], function(relations){
 			var relationsObject = parseRelations(relations);
-			insertTextDB(relationsObject);
+			insertTextDB(relationsObject, username, db);
 			var remainingInput = inputArr.slice(1);
 			if(remainingInput.length === 0){
 				return callback();
 			}
 			else{
-				return getAllRelations(remainingInput, callback);
+				return getAllRelations(remainingInput, username, callback);
 			}
 		});
 	}
@@ -218,89 +264,87 @@ var Bot = module.exports = function(config, requser){
 	};
 
 	var composeTweetText = function(username){
-		MongoClient.connect("mongodb://localhost:27017/" + username + "botDB", function(err, db){
-			var subject,
-				object,
-				action,
-				location;
+		//username = username.replace(/ /g, '');
+		var subject,
+			object,
+			action,
+			location;
 
-			if(!err){
-				var subjectcollection = db.collection('bot_subjects');
-				var actioncollection = db.collection('bot_actions');
-				var objectcollection = db.collection('bot_objects');
-				var locationcollection = db.collection('bot_locations');
-				subjectcollection.find().toArray(function(err, subjects){
-					if(!err) subject = _.sample(subjects).text;
-					actioncollection.find().toArray(function(err, actions){
-						if(!err) action = _.sample(actions).text;
-						objectcollection.find().toArray(function(err, objects){
-							if(!err) object = _.sample(objects).text;
-							locationcollection.find().toArray(function(err, locations){
-								if(!err) location = _.sample(locations).text;
+		var subjectcollection = db.collection('bot_subjects');
+		var actioncollection = db.collection('bot_actions');
+		var objectcollection = db.collection('bot_objects');
+		var locationcollection = db.collection('bot_locations');
+		subjectcollection.find().toArray(function(err, subjects){
+			if(!err && subjects.length > 0) subject = _.sample(subjects).text;
+			actioncollection.find().toArray(function(err, actions){
+				if(!err && actions.length > 0) action = _.sample(actions).text;
+				objectcollection.find().toArray(function(err, objects){
+					if(!err && objects.length > 0) object = _.sample(objects).text;
+					locationcollection.find().toArray(function(err, locations){
+						if(!err && locations.length > 0) location = _.sample(locations).text;
+						var tweetString = subject + " " + action + " " + object;
+						
+						tweet(tweetString, function(err){
+							if(err){
+								console.log(err);
+							} else{
+								console.log("TWEETED: " + tweetString);
+							}
+						})
 
-								console.log(subject + " " + action + " " + object);
-								db.close();
-
-							});
-						});
 					});
 				});
-			}
+			});
 		});
 	};
 
-	var insertTextDB = function(relationsObject, username){
-		MongoClient.connect("mongodb://localhost:27017/" + username + "botDB", function(err, db){
-			if(!err){
-				console.log("We are connected!");
-				var subjectcollection = db.collection('bot_subjects');
-				if(relationsObject.subjects.length > 0){
-					subjectcollection.insert(relationsObject.subjects, {w:1}, function(err, result){
-						if(err){
-							console.log(err.data);
-						}else{
-							console.log("Inserted " + result + " docs into bot_subjects");
-						}
-						var actioncollection = db.collection('bot_actions');
-						if(relationsObject.actions.length > 0){
-							actioncollection.insert(relationsObject.actions, {w:1}, function(err, result){
-								if(err){
-									console.log(err.data);
-								}else{
-									console.log("Inserted " + result + " docs into bot_actions");
-								}
 
-								var objectcollection = db.collection('bot_objects');
-								if(relationsObject.objects.length > 0){
-									objectcollection.insert(relationsObject.objects, {w:1}, function(err, result){
-										if (err) {
-											console.log(err.data);
-										}else{
-											console.log("Inserted " + result + " docs into bot_objects");
-										}
-
-										var locationcollection = db.collection('bot_locations');
-										if(relationsObject.locations.length > 0){
-											locationcollection.insert(relationsObject.locations, {w:1}, function(err, result){
-												if (err) {
-													console.log(err.data);
-												}else{
-													console.log("Inserted " + result + " docs into bot_locations");
-												}
-												db.close();
-											});
-										}
-									});
-								}
-							});
-						}
-					});
+	var insertTextDB = function(relationsObject, username, db){
+		//username = username.replace(/ /g, '');
+		
+		var subjectcollection = db.collection('bot_subjects');
+		if(relationsObject.subjects.length > 0){
+			subjectcollection.insert(relationsObject.subjects, {w:1}, function(err, result){
+				if(err){
+					console.log(err.data);
+				}else{
+					console.log("Inserted " + result + " docs into bot_subjects");
 				}
+			});
+		}
 
-			}else{
-				console.log("Error: " + err.data);
-			}
-		});
+		var actioncollection = db.collection('bot_actions');
+		if(relationsObject.actions.length > 0){
+			actioncollection.insert(relationsObject.actions, {w:1}, function(err, result){
+				if(err){
+					console.log(err.data);
+				}else{
+					console.log("Inserted " + result + " docs into bot_actions");
+				}
+			});
+		}
+
+		var objectcollection = db.collection('bot_objects');
+		if(relationsObject.objects.length > 0){
+			objectcollection.insert(relationsObject.objects, {w:1}, function(err, result){
+				if(err){
+					console.log(err.data);
+				}else{
+					console.log("Inserted " + result + " docs into bot_objects");
+				}
+			});
+		}
+
+		var locationcollection = db.collection('bot_locations');
+		if(relationsObject.locations.length > 0){
+			locationcollection.insert(relationsObject.locations, {w:1}, function(err, result){
+				if(err){
+					console.log(err.data);
+				}else{
+					console.log("Inserted " + result + " docs into bot_locations");
+				}
+			});
+		}
 	};
 
 	var removeURL = function(text){
@@ -312,40 +356,21 @@ var Bot = module.exports = function(config, requser){
     	});
 	};
 
-
-
-	var rtTweet = function(){
+	var RTaTweet = function(){
 		readHomeTimeline(function(err, timeline){
 			if(err) return handleError(err);
-			var sortedByRTCount = _.sortBy(timeline, 'retweet_count');
-			var truncatedTop = _.rest(sortedByRTCount, sortedByRTCount.length-10);
-			var cleanTop = cleanRetweets(truncatedTop);
-			var idsAndCounts = combineArrays(pluck(cleanTop, 'retweet_count'), 
-											 pluck(cleanTop, 'id_str'));
-			console.log(idsAndCounts);
-
-			getAuthUserId(function(myid, usertimeline){
-				compareToFriends(myid, idsAndCounts, function(topMatches){
-					var narrowed = _.filter(topMatches, function(item){
-						return item[1] != 0;
-					});
-					if(narrowed){
-						var tweetID = _.sample(narrowed)[0][1];
-						console.log(tweetID);
-						twit.post('statuses/retweet/:id', {id: tweetID}, function(err, res){
-							if(!err){
-								console.log("RETWEETED: \n" + res.text);
-							} else{
-								console.log("ERROR: \n" + err.data);
-							}
-						});
-					} else{
-						console.log("Tried to retweet, but no likely candidates found.");
-					}	
-				});
+			var rts = cleanRetweets(timeline);
+			var tweetID = _.sample(rts).id_str;
+			console.log(tweetID);
+			twit.post('statuses/retweet/:id', {id: tweetID}, function(err, res){
+				if(!err){
+					console.log("RETWEETED: \n" + res.text);
+				} else{
+					console.log("ERROR: \n" + err.data);
+				}
 			});
 		});
-	};
+	}
 
 	var pluck = function(arr, propertyName) {
   		return arr.map(getItem(propertyName));
@@ -361,8 +386,6 @@ var Bot = module.exports = function(config, requser){
 		cleanArr = cleanArr || [];
 		if(tweetArr[0].retweeted_status){
 			cleanArr.push(tweetArr[0].retweeted_status);
-		} else{
-			cleanArr.push(tweetArr[0]);
 		}
 		tweetArr = tweetArr.slice(1);
 		if(tweetArr.length === 0){
@@ -373,11 +396,9 @@ var Bot = module.exports = function(config, requser){
 	}
 
 	var compareToFriends = function(myid, topTen, callback){
-		getAllFriends(myid, [], -1, function(friendids){
-			compareArrays(topTen, friendids, [], function(matchesArray){
-				var topMatches = combineArrays(topTen, matchesArray);
-				return callback(topMatches);
-			});
+		compareArrays(topTen, friendsArray, [], function(matchesArray){
+			var topMatches = combineArrays(topTen, matchesArray);
+			return callback(topMatches);
 		});
 	};
 
@@ -407,10 +428,8 @@ var Bot = module.exports = function(config, requser){
 	var compareArrays = function(topTen, friendArr, matchesArr, callback){
 		matchesArr = matchesArr || [];
 		var matches = 0;
-		//console.log("TOP TEN: " + topTen);
 		getAllRTers(topTen[0][1], function(rterids){
 			if(rterids){
-				console.log(rterids.length);
 				matches = getMatches(rterids, friendArr, 0);
 			}
 			var remainingTop = topTen.slice(1);
@@ -428,9 +447,7 @@ var Bot = module.exports = function(config, requser){
 	var getMatches = function(left, right, matches){
 		
 		matches += _.reduce(left, function(memo, item){
-			//console.log("ITEM: " + item + " RIGHT: " + right[0]);
 			if(areEqual(item, right[0])){
-				console.log("MATCH!");
 				return memo + 1;
 			}else{
 				return memo;
@@ -458,7 +475,6 @@ var Bot = module.exports = function(config, requser){
 						var name = timeline[i].user.name;
 						var id = timeline[i].id_str;
 						if(data.user_array.hasOwnProperty(name)){
-							console.log("found one: " + name);
 							score += data[name]*200;
 						}
 						if(timeline[i].entities.urls[0]){
@@ -478,12 +494,11 @@ var Bot = module.exports = function(config, requser){
 						}
 					}
 				}
-				console.log(data.id_array);
-				console.log(tweetPool.length);
+				console.log("Tweet pool length: " + tweetPool.length);
 				do {
 					var tweetToFav = randIndex(tweetPool);
 				} while(data.id_array.indexOf(tweetToFav) > -1);
-				console.log("tweet id: " + tweetToFav);
+				console.log("faving tweet id: " + tweetToFav);
 				if(tweetToFav){
 					twit.post('favorites/create', {id: tweetToFav}, function(err, data, response){
 						if(err) console.log(err);
@@ -498,102 +513,85 @@ var Bot = module.exports = function(config, requser){
 		var myid;
 		twit.get('statuses/user_timeline', {include_rts: false}, function(err, data){
 			if(!err)myid = data[0].user.id;
-			return callback(requser.id_str, data);
+			console.log(requser._json.id_str);
+			console.log(requser._json.screen_name);
+			return callback(requser._json.id_str, data);
 		});
 	}
 
-	var followUser = function(){
-	    var friendIds;
-
-		twit.get('friends/ids', {}, function(err, data){
-
-			friendIds=data.ids;
-			var id = randIndex(data.ids);
-
-			twit.get('statuses/user_timeline', {user_id: id}, function(err, timeline){
-				var mentions = [];
-				for(var i = 0; i < timeline.length; i++){
-					var thisMentions = timeline[i].entities.user_mentions;
-					for(var j = 0; j < thisMentions.length; j++){
-						mentions.push(thisMentions[j]);
-					}
-				}
-				console.log(mentions);
-			    var candidates = [];
-			    for (var i = mentions.length - 1; i >= 0; i--) {
-			    	if(friendIds.indexOf(mentions[i].id) === -1 &&
-			    	candidates.indexOf(mentions[i].id) === -1){
-			    		candidates.push(mentions[i].id);
-			    	}
-			    };
-
-			    console.log(candidates);
-
-			    for (var i = candidates.length - 1; i >= 0; i--) {
-			    	console.log("candidate " + candidates[i]);
-			    	if(i < 1){
-			    		(function(cand){
-			    			var count = 0;
-			    			var emptyids = [];
-			    			getAllFollowers(cand, emptyids, -1, count, function(foids){
-			    				console.log("num of followers: " + foids.length);
-			    				var numInCommon = 0;
-					    		for (var j = foids.length - 1; j >= 0; j--) {
-					    			if(friendIds.indexOf(foids[j]) > -1){
-					    				numInCommon++;
-					    			}
-					    		};
-
-					    		console.log("numInCommon = " + numInCommon);
-					    		var tries = 0;
-					    		var followed = false;
-					    		while(tries < numInCommon && followed === false){
-					    			tries++;
-					    			if(Math.random() < 0.5){
-					    				followed = true;
-					    				twit.post('friendships/create', {user_id: cand}, function(err, newFollow){
-					    					console.log("Now Following " + newFollow.name + " id: " + newFollow.id_str);
-					    				});
-					    			}
-					    		}
-
-
-			    			});
-			    		})(candidates[i]);
-			    	}
-			    };
+	var addFriend = function(){
+		randomFriend = _.sample(friendsArray);
+		getAllFriends(randomFriend, [], -1, 5000, function(friendFriends){
+			selectedFriends = _.sample(friendFriends, 10);
+			getUsersNumFollowers(selectedFriends, function(fcounts){
+				console.log(fcounts);
+				var friendToAdd = _.max(fcounts, function(item){
+					return item.followers_count;
+				});
+				console.log(friendToAdd);
+				twit.post('friendships/create', {user_id: friendToAdd.id_str}, function(err, newFollow){
+					if(!err){
+			    		console.log("Now Following " + newFollow.name + " id: " + newFollow.id_str);
+			   		} else {
+			   			console.log(err);
+			   		}
+			    });
 			});
-
 		});
-
 	};
 
+	var getUsersNumFollowers = function(usersIds, callback, fcounts){
+		var followersCounts = fcounts || [];
+		twit.get('users/show', {user_id: usersIds[0], include_entities: false}, function(err, data){
+			if(!err){
+				console.log(data.screen_name);
+				followersCounts.push({screen_name: data.screen_name, followers_count: data.followers_count, id_str: data.id_str});
+			} else {
+				console.log(err);
+			}
+			var remainingids = usersIds.slice(1);
+			if(remainingids.length === 0){
+				return callback(followersCounts);
+			} else {
+				return getUsersNumFollowers(remainingids, callback, followersCounts);
+			}
+			
+		});
+	}; 
+
 	var getAllFollowers = function(userid, followerids, nextCursor, count, callback){
-		twit.get('followers/ids', {user_id: userid, cursor: nextCursor}, function(err, followers){
+		followerids = followerids || [];
+		twit.get('followers/ids', {user_id: userid, count: count, cursor: nextCursor}, function(err, followers){
 			if(err){
-				console.log("error: " + err);
+				console.log("error getting all followers: " + err);
 				return callback(followerids);
 			}
 			followerids.push.apply(followerids, followers.ids);
 			nextCursor = followers.next_cursor_str;
 			if(nextCursor != "0"){
-				console.log("keep going! cursor = " + nextCursor);
 				getAllFollowers(userid, followerids, nextCursor, count, callback);
 			} else if(callback){
-				console.log("bring it back");
 				return callback(followerids);
 			}	
 		});
 	};
 
-	var getAllFriends = function(userid, friendids, nextCursor, callback){
+	var getAllFriends = function(userid, friendids, nextCursor, count, callback){
+		console.log("time to get all friends");
 		friendids = friendids || [];
-		twit.get('friends/ids', {user_id: userid, cursor: nextCursor, stringify_ids: true}, function(err, friends){
+		count = count || 5000;
+		twit.get('friends/ids', {user_id: userid, cursor: nextCursor, count: count, stringify_ids: true}, function(err, friends){
+			if(err){
+				console.log("error getting all friends: " + err);
+				return callback(friendids);
+			}
 			friendids.push.apply(friendids, friends.ids);
 			nextCursor = friends.next_cursor_str;
 			if(nextCursor != "0"){
-				getAllFollowers(userid, followerids, nextCursor, count, callback);
+				console.log("get all friends recurse");
+				getAllFriends(userid, friendids, nextCursor, count, callback);
 			} else if(callback){
+				console.log("get all friends return");
 				return callback(friendids);
 			}	
 		});
@@ -617,12 +615,14 @@ var Bot = module.exports = function(config, requser){
 	that.getFavInterval = getFavInterval;
 	that.getFollowInterval = getFollowInterval;
 	that.getRTInterval = getRTInterval;
-	that.followUser = followUser;
-	that.rtTweet = rtTweet;
+	that.RTaTweet = RTaTweet;
 	that.insertTextDB = insertTextDB;
 	that.getFullUserTimeline = getFullUserTimeline;
 	that.getAllRelations = getAllRelations;
 	that.composeTweetText = composeTweetText;
+	that.updateFriendsArray = updateFriendsArray;
+	that.clearDB = clearDB;
+	that.addFriend = addFriend;
 
 	return that;
 }

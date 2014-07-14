@@ -11,6 +11,8 @@ var methodOverride = require('method-override');
 var session = require('express-session');
 var Bot = require('./bot');
 var MongoClient = require('mongodb').MongoClient;
+var format = require('util').format;
+var _ = require('underscore');
 
 var passport = require('passport')
   , TwitterStrategy = require('passport-twitter').Strategy;
@@ -71,8 +73,16 @@ app.get('/account', ensureAuthenticated, function(req, res){
     var username = req.user.username;
     user = req.user;
     if(!activeBots.hasOwnProperty(username) || activeBots[username] === null){
-        activeBots[username] = new Bot(config, user);
-        console.log("Made a new bot for " + username + "!");
+        MongoClient.connect("mongodb://localhost:27017/" + username + "_BDB", function(err, db){
+            if(!err){
+                console.log("We are connected!");
+                activeBots[username] = new Bot(config, user, db);
+                activeBots[username].updateFriendsArray();
+                console.log("Made a new bot for " + username + "!");
+            }else{
+                console.log("Error: " + err.data);
+            }
+        });
     }
     res.render('account', { user: req.user,
                             title: 'Twotto',
@@ -96,39 +106,88 @@ app.get('/logout', function(req, res){
     res.redirect('/');
 });
 
+app.get('/filldb/:username', ensureAuthenticated, function(req, res){
+    var username = req.params.username;
+    activeBots[username].clearDB(function(){
+        activeBots[username].getFullUserTimeline(function(tweetsTextArr){
+            activeBots[username].getAllRelations(tweetsTextArr, username, function(){
+                console.log("done");
+            });
+        }, username);
+    });
+    
+
+    res.render('filldb', {title: "Twotto", user: req.params.username});
+
+});
+
 app.get('/launchbot/:username', ensureAuthenticated, function(req, res){
     var username = req.params.username;
-    var testInterval = 30000;
-    /*bot.tweet('Testing the bot, dont mind me doop de doop', function(err){
-        if(err){
-            console.log(err.message);
-            res.send(err.message);
-        }else{
-            console.log('tweeted');
-            res.send('Launched!');
-        }
-    });*/
+    var testInterval = 60000*16;
+    var dbInterval = 86400000;
+    botLoops[req.params.username] = [];
+
+    /*(function queryBehavior(dbi){
+        activeBots[username].getFullUserTimeline(function(tweetsTextArr){
+            activeBots[username].getAllRelations(tweetsTextArr, username, function(){
+                console.log("done");
+                setTimeout(queryBehavior, dbi, dbi);
+            });
+         }, username);
+    })(dbInterval);*/
+
+    (function tweetBehavior(twti){
+        activeBots[username].composeTweetText(username);
+        botLoop = setTimeout(tweetBehavior, twti, twti);
+        botLoops[req.params.username].push(botLoop);
+    })(testInterval);
+
+    activeBots[username].getRTInterval(function(rtInterval){
+
+        console.log("Will retweet a tweet every " + rtInterval + " milliseconds");
+
+        (function rtBehavior(rti){
+            activeBots[username].RTaTweet();
+            botLoop = setTimeout(rtBehavior, rti, rti);
+            botLoops[req.params.username].push(botLoop);
+        })(testInterval);
+        
+    });
+
+    activeBots[username].getFollowInterval(function(followInterval){
+
+        console.log("Will follow a user every " + followInterval + " milliseconds");
+
+        (function followBehavior(foli){
+            activeBots[username].addFriend();
+            activeBots[username].updateFriendsArray();
+            botLoop = setTimeout(followBehavior, foli, foli);
+            botLoops[req.params.username].push(botLoop);
+        })(testInterval);
+        
+    });
 
     activeBots[username].getFavInterval(function(favInterval){
 
         console.log("Will fav a tweet every " + favInterval + " milliseconds");
 
-        (function favBehavior(favInterval){
+        (function favBehavior(fi){
             activeBots[username].favTweet();
-            botLoop = setTimeout(favBehavior, testInterval);
-            botLoops[req.params.username] = botLoop;
-        })();
-        console.log("Started " + req.params.username + "'s twitter bot loop.");
+            botLoop = setTimeout(favBehavior, fi, fi);
+            botLoops[req.params.username].push(botLoop);
+        })(testInterval);
 
     });
+
+    console.log("Started " + req.params.username + "'s twitter bot loop.");
 
     res.render('launchbot', {title: "Twotto", user: req.params.username});
 
 });
 
 app.get('/stopbot/:username', ensureAuthenticated, function(req, res){
-    clearTimeout(botLoops[req.params.username]);
-    console.log("cleared " + req.params.username + "'s twitter bot loop.");
+    botLoops[req.params.username] = clearTimeoutsArray(botLoops[req.params.username]);
+    console.log("cleared " + req.params.username + "'s twitter bot loops.");
     botLoops[req.params.username] = null;
     botLoop = null;
     res.redirect('/account');
@@ -173,6 +232,16 @@ console.log("Express server listening on port " + app.get('port'));
 function ensureAuthenticated(req, res, next) {
 if (req.isAuthenticated()) { return next(); }
 res.redirect('/')
+}
+
+function clearTimeoutsArray(timeoutArray){
+    clearTimeout(timeoutArray[0]);
+    remainingTOs = timeoutArray.slice(1);
+    if(remainingTOs.length === 0){
+        return remainingTOs;
+    } else{
+        return clearTimeoutsArray(remainingTOs);
+    }
 }
 
 
