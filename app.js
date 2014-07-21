@@ -14,6 +14,9 @@ var MongoClient = require('mongodb').MongoClient;
 var format = require('util').format;
 var _ = require('underscore');
 
+var AlchemyAPI = require('./alchemyapi_node/alchemyapi');
+var alchemyapi = new AlchemyAPI();
+
 var passport = require('passport')
   , TwitterStrategy = require('passport-twitter').Strategy;
 
@@ -43,6 +46,7 @@ var routes = require('./routes/index');
 var account = require('./routes/account');
 
 var user;
+var usertimeline;
 
 var app = express();
 var botLoop;
@@ -57,7 +61,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded());
 app.use(cookieParser());
 app.use(methodOverride());
-app.use(session({secret: 'my_secret'}));
+app.use(session({secret: 'my_secret', resave: true, saveUninitialized: true}));
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -85,7 +89,7 @@ app.get('/account', ensureAuthenticated, function(req, res){
         });
     }
     res.render('account', { user: req.user,
-                            title: 'Twotto',
+                            title: 'DoppelTweeter',
                             userLoop: botLoops[req.user.username]||null });
     
 });
@@ -113,11 +117,11 @@ app.get('/filldb/:username', ensureAuthenticated, function(req, res){
             activeBots[username].getAllRelations(tweetsTextArr, username, function(){
                 console.log("done");
             });
-        }, username);
+        },true, username);
     });
     
 
-    res.render('filldb', {title: "Twotto", user: req.params.username});
+    res.render('filldb', {title: "DoppelTweeter", user: req.params.username});
 
 });
 
@@ -181,7 +185,7 @@ app.get('/launchbot/:username', ensureAuthenticated, function(req, res){
 
     console.log("Started " + req.params.username + "'s twitter bot loop.");
 
-    res.render('launchbot', {title: "Twotto", user: req.params.username});
+    res.render('launchbot', {title: "DoppelTweeter", user: req.params.username});
 
 });
 
@@ -191,6 +195,30 @@ app.get('/stopbot/:username', ensureAuthenticated, function(req, res){
     botLoops[req.params.username] = null;
     botLoop = null;
     res.redirect('/account');
+});
+
+
+//get most recent activity from bot
+//list tweets alongside alchemy analysis of those tweets
+app.get('/checkbot/:username', ensureAuthenticated, function(req, res){
+    var username = req.params.username;
+    if(activeBots[username]){
+        activeBots[username].getFullUserTimeline(function(tweetdata){
+            var usertimeline = tweetdata;
+            var tweetsForPage = usertimeline.slice(0, 10);
+            var relations = [];
+            getKeywords(req, res, relations, tweetsForPage, function(relationArray){
+                console.log(tweetsForPage);
+                res.render('checkbot', {title: "DoppelTweeter", tweets: tweetsForPage, rels: relationArray, user: username});
+            });
+        }, false, username);
+    } else {
+        res.redirect('/account');
+    }
+});
+
+app.get('/checkbot/:username/:pagenum', ensureAuthenticated, function(req, res){
+
 });
 
 /// catch 404 and forward to error handler
@@ -232,7 +260,7 @@ console.log("Express server listening on port " + app.get('port'));
 function ensureAuthenticated(req, res, next) {
 if (req.isAuthenticated()) { return next(); }
 res.redirect('/')
-}
+};
 
 function clearTimeoutsArray(timeoutArray){
     clearTimeout(timeoutArray[0]);
@@ -242,7 +270,31 @@ function clearTimeoutsArray(timeoutArray){
     } else{
         return clearTimeoutsArray(remainingTOs);
     }
-}
+};
+
+function getRelations(req, res, relations, tweets, callback){
+    alchemyapi.relations('text', tweets[0], {}, function(response) {
+            relations.push(response);
+            remainingTweets = tweets.slice(1);
+            if(remainingTweets.length !== 0){
+               return getRelations(req, res, relations, remainingTweets, callback);
+            } else {
+                return callback(relations);
+            }
+    });
+};
+
+function getKeywords(req, res, keywords, tweets, callback){
+    alchemyapi.keywords('text', tweets[0], {}, function(response) {
+            keywords.push(response);
+            remainingTweets = tweets.slice(1);
+            if(remainingTweets.length !== 0){
+               return getKeywords(req, res, keywords, remainingTweets, callback);
+            } else {
+                return callback(keywords);
+            }
+    });
+};
 
 
 module.exports = app;

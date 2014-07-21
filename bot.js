@@ -5,6 +5,7 @@ var MongoClient = require('mongodb').MongoClient;
 var format = require('util').format;
 var AlchemyAPI = require('./alchemyapi_node/alchemyapi');
 var alchemyapi = new AlchemyAPI();
+var Tweh = require('./twitteremojihandler');
 
 
 ///////////////////////////////
@@ -16,6 +17,7 @@ var Bot = module.exports = function(config, req_user, db){
 	var defaultInterval = 21600000;
 	var requser = req_user;
 	var friendsArray;
+	var tweh = new Tweh();
 
 	//console.log(requser);
 
@@ -152,10 +154,10 @@ var Bot = module.exports = function(config, req_user, db){
 		});
 	};
 
-	var getFullUserTimeline = function (callback, screenName, tweetData, maxId){
+	var getFullUserTimeline = function (callback, rts, screenName, tweetData, maxId){
 		//returns up to 3000 texts extracted from user_timeline
 		tweetData = tweetData || [];
-		twit.get('statuses/user_timeline', {screen_name: screenName, count: 200, include_rts: true, trim_user: true, max_id: maxId}, function(err, res){
+		twit.get('statuses/user_timeline', {screen_name: screenName, count: 200, include_rts: rts, trim_user: true, max_id: maxId}, function(err, res){
 			if(err){
 				console.log("ERROR: " + err.data);
 			}
@@ -167,7 +169,7 @@ var Bot = module.exports = function(config, req_user, db){
 				
 				return callback(tweetData);
 			} else{
-				return getFullUserTimeline(callback, screenName, tweetData, maxId);
+				return getFullUserTimeline(callback, rts, screenName, tweetData, maxId);
 			}
 		}); 
 	};
@@ -283,6 +285,7 @@ var Bot = module.exports = function(config, req_user, db){
 					locationcollection.find().toArray(function(err, locations){
 						if(!err && locations.length > 0) location = _.sample(locations).text;
 						var tweetString = subject + " " + action + " " + object;
+						tweetString = tweh.handleEmoji(tweetString);
 						
 						tweet(tweetString, function(err){
 							if(err){

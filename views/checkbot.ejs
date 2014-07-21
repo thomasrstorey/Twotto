@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= title %></title>
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+  </head>
+  <body>
+    <h1>Bot Status</h1>
+    <a href='/account'>Account</a>
+    <a href='/stopbot/<%= user %>'>Stop</a>
+    <a href='/logout'>Logout</a>
+    <br>
+    <h3>Recent Activity</h3>
+    <table style="width:800px">
+      <% for(var i = 0; i < rels.length; i++){ %>
+        <tr>
+          <td> <%= tweets[i] %> </td>
+          <td> <textarea rows='20' style="width:600px" ><%= JSON.stringify(rels[i], null, '\t') %> </textarea> </td>
+        </tr>
+      <% } %>
+    </table>
+  </body>
+</html>

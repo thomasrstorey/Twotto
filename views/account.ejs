@@ -23,7 +23,9 @@
     <%
     } else{
       var stopRequest = '/stopbot/' + user.username;
+      var checkRequest = '/checkbot/' + user.username;
       %>
+      <a href='<%= checkRequest %>'>Status</a>
       <a href='<%= stopRequest %>'>Stop</a>
       <% } %>
 
