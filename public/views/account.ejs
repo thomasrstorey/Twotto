@@ -1,16 +1,14 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title><%= title %></title>
-    <link rel='stylesheet' href='/stylesheets/style.css' />
-  </head>
   <body>
-    <h1>Hi, <%= user.username %>.</h1>
+    <h1>welcome, anonymous</h1>
     <%
       if(userLoop){
     %>
-    <h3>Bot running.</h3>
-    <% } %>
+      <h3>account_active: true</h3>
+    <% } else { %>
+      <h3>account_active: false</h3>
+    <%  } %>
     <a href='/'>Home</a>
     <a href='/filldb/<%= user.username %>'>Analyze Me</a>
 
@@ -19,25 +17,26 @@
     if(!userLoop){
     var launchRequest = '/launchbot/' + user.username;
     %>
-    <a href='<%= launchRequest %>'>Launch</a>
+    <a href='<%= launchRequest %>'>start();</a>
     <%
     } else{
       var stopRequest = '/stopbot/' + user.username;
       var checkRequest = '/checkbot/' + user.username;
       %>
-      <a href='<%= checkRequest %>'>Status</a>
-      <a href='<%= stopRequest %>'>Stop</a>
+      <a href='<%= checkRequest %>'>analysis();</a>
+      <a href='<%= stopRequest %>'>stop();</a>
       <% } %>
 
     
     <a href='/logout'>Logout</a>
     <br>
+    <p>id: <%= user.username %></p>
     <%
       if(!userLoop){
     %>
-    <p>Click Launch to start your bot.</p>
+    <p>//use start() to begin content generation</p>
     <% }else{ %>
-     <p>Click Stop to pause your bot.</p>
+     <p>//use stop() to halt content generation<br>//use analysis() to begin identity analysis</p>
     <% } %>
   </body>
 </html>

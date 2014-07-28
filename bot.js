@@ -1,6 +1,6 @@
 var Twit = require('twit');
 var _ = require('underscore');
-var config = require('./config');
+//var config = require('./config');
 var MongoClient = require('mongodb').MongoClient;
 var format = require('util').format;
 var AlchemyAPI = require('./alchemyapi_node/alchemyapi');
@@ -154,7 +154,7 @@ var Bot = module.exports = function(config, req_user, db){
 		});
 	};
 
-	var getFullUserTimeline = function (callback, rts, screenName, tweetData, maxId){
+	var getFullUserTimeline = function (callback, rts, screenName, tweetData, maxId, json){
 		//returns up to 3000 texts extracted from user_timeline
 		tweetData = tweetData || [];
 		twit.get('statuses/user_timeline', {screen_name: screenName, count: 200, include_rts: rts, trim_user: true, max_id: maxId}, function(err, res){
@@ -631,48 +631,6 @@ var Bot = module.exports = function(config, req_user, db){
 }
 
 ///////////////////////////////
-
-//var bot = new Bot(config);
-//var testInterval = 900000 //15 minutes
-
-/*(function fillUserBotDB(){
-	bot.getFullUserTimeline(function(tweetsTextArr){
-		bot.getAllRelations(tweetsTextArr, function(){
-			console.log("done");
-			setTimeout(fillUserBotDB, testInterval);
-		});
-	});
-})();
-
-
-bot.getFavInterval(function(favInterval){
-
-	console.log("Will fav a tweet every " + favInterval + " milliseconds");
-
-	(function favBehavior(favInterval){
-		bot.favTweet();
-		setTimeout(favBehavior, testInterval);
-	})();
-
-});
-
-bot.getFollowInterval(function(followInterval){
-	console.log("Will follow a user every " + followInterval + " milliseconds");
-
-	bot.followUser();
-});
-
-bot.getRTInterval(function(rtInterval){
-	console.log("Will retweet a tweet every " + rtInterval + " milliseconds");
-	bot.rtTweet();
-});
-
-
-
-bot.composeTweetText();*/
-
-
-
 ///////////////////////////////
 
 function randIndex (arr) {

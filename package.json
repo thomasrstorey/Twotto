@@ -1,5 +1,5 @@
 {
-  "name": "twotto",
+  "name": "doppeltweeter",
   "description": "twitter bot",
   "version": "0.0.1",
   "private": true,
@@ -15,6 +15,7 @@
     "cookie-parser": "~1.0.1",
     "body-parser": "~1.0.0",
     "debug": "~0.7.4",
+    "mongoose" : "~3.8.0",
     "passport-twitter": "1.0.2",
     "passport": "0.2.0"
   }

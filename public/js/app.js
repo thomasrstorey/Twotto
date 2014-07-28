@@ -1,0 +1,1 @@
+angular.module('App', ['ngRoute', 'appRoutes', 'MainCtrl', 'BotCtrl', 'BotService', 'LoginCtrl']);
