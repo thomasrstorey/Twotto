@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "private": true,
   "dependencies": {
+    "cors": "2.4.1",
     "express": "4.5.1",
     "mongodb": "1.4.7",
     "node-windows": "0.1.5",

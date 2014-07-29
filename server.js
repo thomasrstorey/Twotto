@@ -14,6 +14,7 @@ var MongoClient    = require('mongodb').MongoClient;
 var mongoose       = require('mongoose');
 var format         = require('util').format;
 var _              = require('underscore');
+var cors           = require('cors');
 
 var AlchemyAPI     = require('./alchemyapi_node/alchemyapi');
 
@@ -32,13 +33,14 @@ var user;
 var usertimeline;
 
 var app = express();
-var activeBots = {};
-var botLoops = {};
+app.locals.activeBots = {};
+app.locals.botLoops = {};
 
 // view engine setup =====================================================
 app.set('views', path.join(__dirname, './public/views'));
 app.set('view engine', 'ejs');
 app.use(logger('dev'));
+app.use(cors());
 // get all data/stuff of the body (POST) parameters
 app.use(bodyParser.json()); // parse application/json
 app.use(bodyParser.json({type: 'application/vnd.api+json'})); // parse application/vnd.api+json as json
@@ -59,7 +61,9 @@ mongoose.connect(db.url);
 //routes ==================================================================
 //var routes = require('./routes/index');
 //app.use('/', routes);
-require('./app/routes')(app, passport);
+require('./app/routes')(app, passport, config);
+
+
 
 //////////////////////////////////////////////////////////
 
@@ -69,25 +73,25 @@ app.get('/account', ensureAuthenticated, function(req, res){
     postauth.access_token = req.user.token;
     postauth.access_token_secret = req.user.tokenSecret;
     user = req.user;
-    if(!activeBots.hasOwnProperty(username) || activeBots[username] === null){
-        activeBots[username] = new Bot(postauth, user, db);
-        activeBots[username].updateFriendsArray();
+    if(!app.locals.activeBots.hasOwnProperty(username) || app.locals.activeBots[username] === null){
+        app.locals.activeBots[username] = new Bot(postauth, user, db);
+        app.locals.activeBots[username].updateFriendsArray();
         console.log("Made a new bot for " + username + "!");
     } else {
         console.log(username + " already has a bot running");
     }
     res.render('account', { user: req.user,
                             title: 'Doppeltweeter',
-                            userLoop: botLoops[req.user.username]||null });
+                            userLoop: app.locals.botLoops[req.user.username]||null });
 });
 
 ////////////////////////////////////////////////////////////
 
 app.get('/filldb/:username', ensureAuthenticated, function(req, res){
     var username = req.params.username;
-    activeBots[username].clearDB(function(){
-        activeBots[username].getFullUserTimeline(function(tweetsTextArr){
-            activeBots[username].getAllRelations(tweetsTextArr, username, function(){
+    app.locals.activeBots[username].clearDB(function(){
+        app.locals.activeBots[username].getFullUserTimeline(function(tweetsTextArr){
+            app.locals.activeBots[username].getAllRelations(tweetsTextArr, username, function(){
                 console.log("done");
             });
         },true, username);
@@ -104,11 +108,11 @@ app.get('/launchbot/:username', ensureAuthenticated, function(req, res){
     var username = req.params.username;
     var testInterval = 60000*16;
     var dbInterval = 86400000;
-    botLoops[req.params.username] = [];
+    app.locals.botLoops[req.params.username] = [];
 
     (function queryBehavior(dbi){
-        activeBots[username].getFullUserTimeline(function(tweetsTextArr){
-            activeBots[username].getAllRelations(tweetsTextArr, username, function(){
+        app.locals.activeBots[username].getFullUserTimeline(function(tweetsTextArr){
+            app.locals.activeBots[username].getAllRelations(tweetsTextArr, username, function(){
                 console.log("done");
                 setTimeout(queryBehavior, dbi, dbi);
             });
@@ -116,44 +120,44 @@ app.get('/launchbot/:username', ensureAuthenticated, function(req, res){
     })(dbInterval);
 
     (function tweetBehavior(twti){
-        activeBots[username].composeTweetText(username);
+        app.locals.activeBots[username].composeTweetText(username);
         var botLoop = setTimeout(tweetBehavior, twti, twti);
-        botLoops[req.params.username].push(botLoop);
+        app.locals.botLoops[req.params.username].push(botLoop);
     })(testInterval);
 
-    activeBots[username].getRTInterval(function(rtInterval){
+    app.locals.activeBots[username].getRTInterval(function(rtInterval){
 
         console.log("Will retweet a tweet every " + rtInterval + " milliseconds");
 
         (function rtBehavior(rti){
-            activeBots[username].RTaTweet();
+            app.locals.activeBots[username].RTaTweet();
             var botLoop = setTimeout(rtBehavior, rti, rti);
-            botLoops[req.params.username].push(botLoop);
+            app.locals.botLoops[req.params.username].push(botLoop);
         })(testInterval);
         
     });
 
-    activeBots[username].getFollowInterval(function(followInterval){
+    app.locals.activeBots[username].getFollowInterval(function(followInterval){
 
         console.log("Will follow a user every " + followInterval + " milliseconds");
 
         (function followBehavior(foli){
-            activeBots[username].addFriend();
-            activeBots[username].updateFriendsArray();
+            app.locals.activeBots[username].addFriend();
+            app.locals.activeBots[username].updateFriendsArray();
             var botLoop = setTimeout(followBehavior, foli, foli);
-            botLoops[req.params.username].push(botLoop);
+            app.locals.botLoops[req.params.username].push(botLoop);
         })(testInterval);
         
     });
 
-    activeBots[username].getFavInterval(function(favInterval){
+    app.locals.activeBots[username].getFavInterval(function(favInterval){
 
         console.log("Will fav a tweet every " + favInterval + " milliseconds");
 
         (function favBehavior(fi){
-            activeBots[username].favTweet();
+            app.locals.activeBots[username].favTweet();
             var botLoop = setTimeout(favBehavior, fi, fi);
-            botLoops[req.params.username].push(botLoop);
+            app.locals.botLoops[req.params.username].push(botLoop);
         })(testInterval);
 
     });
@@ -167,9 +171,9 @@ app.get('/launchbot/:username', ensureAuthenticated, function(req, res){
 ///////////////////////////////////////////////////////////////////////
 
 app.get('/stopbot/:username', ensureAuthenticated, function(req, res){
-    botLoops[req.params.username] = clearTimeoutsArray(botLoops[req.params.username]);
+    app.locals.botLoops[req.params.username] = clearTimeoutsArray(botLoops[req.params.username]);
     console.log("cleared " + req.params.username + "'s twitter bot loops.");
-    botLoops[req.params.username] = null;
+    app.locals.botLoops[req.params.username] = null;
     res.redirect('/account');
 });
 
@@ -181,7 +185,7 @@ app.get('/stopbot/:username', ensureAuthenticated, function(req, res){
 app.get('/checkbot/:username', ensureAuthenticated, function(req, res){
     var username = req.params.username;
     if(activeBots[username]){
-        activeBots[username].getFullUserTimeline(function(tweetdata){
+        app.locals.activeBots[username].getFullUserTimeline(function(tweetdata){
             var usertimeline = tweetdata;
             var tweetsForPage = usertimeline.slice(0, 10);
             var relations = [];

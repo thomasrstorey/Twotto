@@ -46,11 +46,5 @@ module.exports = function(passport){
 				}
 			});
 		});
-	    /*config.access_token = token;
-	    config.access_token_secret = tokenSecret;
-	    process.nextTick(function(){
-	        return done(null, profile);
-	    });*/
-	    
 	}));
 }

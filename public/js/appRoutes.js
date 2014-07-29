@@ -1,17 +1,12 @@
 angular.module('appRoutes', []).config(['$routeProvider', '$locationProvider', function($routeProvider, $locationProvider) {
 	$routeProvider
 		.when('/', {
-			templateUrl: 'home.ejs',
-			controller: 'MainController'
+			templateUrl: '../../views/user.html',
+			controller: 'UserController'
 		})
-		.when('/login', {
-			templateUrl: 'login.ejs',
-			controller: 'LoginController'
-		})
-		.when('/account', {
-			templateUrl: 'account.ejs',
-			controller: 'BotController'
+		.otherwise({
+			redirectTo: '/'
 		});
 
-	$locationProvider.html5mode(true);
+	$locationProvider.html5Mode(true);
 }]);
