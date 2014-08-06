@@ -1,4 +1,4 @@
-###TODO###
+#TODO#
 
 ##Bot##
 
@@ -10,7 +10,7 @@
 
 ##Frontend##
 
-#Functions#
+###Functions###
 
 *Login/Logout
 
@@ -18,7 +18,7 @@
 
 *Start/Stop bot
 
-#UI#
+###UI###
 
 *Feed of analysis of latest activity
 
