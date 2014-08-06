@@ -18,7 +18,8 @@ var cors           = require('cors');
 
 var AlchemyAPI     = require('./alchemyapi_node/alchemyapi');
 
-var Bot            = require('./bot');
+var User = require('./app/models/user');
+var Bot = require('./bot');
 
 var alchemyapi = new AlchemyAPI();
 
@@ -59,9 +60,7 @@ app.set('port', process.env.PORT || 3000);
 mongoose.connect(db.url);
 
 //routes ==================================================================
-//var routes = require('./routes/index');
-//app.use('/', routes);
-require('./app/routes')(app, passport, config);
+require('./app/routes')(app, passport, config, User, Bot);
 
 
 

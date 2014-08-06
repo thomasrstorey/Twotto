@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="App">
+  <%- include head.ejs %>
+  <body>
+
+  <script type="text/javascript">
+            window.user = <%- JSON.stringify(user) %>;
+  </script>
+
+  <button ng-hide="session.isLoggedIn" ng-click="session.facebookLogin()">Login</button>
+		<span ng-show="session.isLoggedIn" ng-bind="'Hello ' + session.currentUser.twitter.username"></span>
+		<button ng-show="session.isLoggedIn" ng-click="session.logout()">Logout</button>
+    <div class="container">
+
+    	<!--Angular Dynamic Content-->
+    	<div ng-view></div>
+
+   </div>
+  </body>
+</html>
