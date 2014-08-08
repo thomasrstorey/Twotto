@@ -34,8 +34,7 @@ module.exports = function(app, passport, config, User, Bot){
 	 	config.access_token_secret = req.user.twitter.tokenSecret;
 	 	console.log(JSON.stringify(config));
 	 	if(!app.locals.activeBots.hasOwnProperty(username) || app.locals.activeBots[username] === null){
-	        app.locals.activeBots[username] = new Bot(config, req.user, User);
-	        app.locals.activeBots[username].updateFriendsArray();
+	       app.locals.activeBots[username] = new Bot(config, req.user, User);
 	        console.log("Made a new bot for " + username + "!");
 	    } else {
 	        console.log(username + " already has a bot running");
@@ -48,17 +47,16 @@ module.exports = function(app, passport, config, User, Bot){
 	app.post('/app/secured/db/:username', ensureAuthenticated, function(req, res){
 		var username = req.params.username;
 		if(app.locals.activeBots.hasOwnProperty(username)){
-			app.locals.activeBots[username].getFullUserTimeline(function(tweets){
-				app.locals.activeBots[username].getAllRelations(tweets, username, function(requser){
-					requser.save(function(err){
-						if(err){
-							console.error("Error saving to db: " + err);
-						}
-					});
+			app.locals.activeBots[username].postRelations(function(err, requser){
+				requser.save(function(err){
+					if(err){
+						console.error("Error saving to db: " + err);
+						res.json({ message: "Error"});
+					}
 					console.log("done");
-					res.json({ message: "filled db"});
+					res.json({ message: "done"});
 				});
-			}, true, username);
+			});
 		} else {
 			res.json({ message: "error: no user"});
 		}
@@ -69,7 +67,7 @@ module.exports = function(app, passport, config, User, Bot){
 
 		var username = req.params.username;
 		if(app.locals.activeBots.hasOwnProperty(username)){
-			app.locals.activeBots[username].composeTweetText(username, function(err, tweet){
+			app.locals.activeBots[username].postComposedTweet(username, function(err, tweet){
 				if(err){
 					res.json({ message: "error: " + err});
 				} else {
