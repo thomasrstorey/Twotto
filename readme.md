@@ -10,13 +10,13 @@
 
 ###Functions###
 
-* --Login/Logout--
-* --Collect Data--
+* ~~Login/Logout~~
+* ~~Collect Data~~
 * Start/Stop bot
 
 ###UI###
 
 * Feed of analysis of latest activity
-* --Ajax loader animations--
-* --gray out busy buttons--
+* ~~Ajax loader animations~~
+* ~~gray out busy buttons~~
 
