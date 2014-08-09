@@ -33,8 +33,25 @@ var Bot = module.exports = function(config, requser, User){
 				return callback(err, null);
 			}
 			userdata[element] = data;
+			return callback(null, userdata, "data added to " + username + "." + element);
 		});
 	};
+
+	var postFavDB = function(tweetdata, callback){
+		User.findOne({ 'twitter.username' : requser.twitter.username}, function(err, userdata){
+			if(err){
+				console.error("Error finding user: " + err);
+				return callback(err, null);
+			}
+			userdata.favorites.push({
+				id: tweetdata.id_str,
+				username: tweetdata.user.screen_name,
+				text: tweetdata.text
+
+			});
+			return callback(null, userdata);
+		});
+	}
 
 	var postRelations = function(callback){
 		getUserTimeline(function(tweets){
@@ -174,9 +191,8 @@ var Bot = module.exports = function(config, requser, User){
 		}); 
 	};
 
-	var getFavs = function(callback, maxid, screenName, favData){
+	var getFavs = function(callback, screenName, favData, maxid ){
 		favData = favData || [];
-		maxid = maxid || null;
 		twit.get('favorites/list', {count: 200, screen_name: screenName, max_id: maxid}, function(err, data){
 			if(err){
 				return callback(err, null);
@@ -193,9 +209,9 @@ var Bot = module.exports = function(config, requser, User){
 				maxid = _.last(data).id_str;
 			}
 			if(favData.length >= 3000 || data.length === 1){
-				return callback(favData);
+				return callback(null, favData);
 			} else {
-				return getFavs(callback, maxid, screenName, favData);
+				return getFavs(callback, screenName, favData, maxid);
 			}
 		});
 	};
@@ -419,7 +435,10 @@ var Bot = module.exports = function(config, requser, User){
 			if(err) return callback(err, null);
 			getDBFavs(requser.twitter.username, function(err, favdata){
 				if(err) return callback(err, null);
-				var scores = _.map(timeline, function(tweet){
+				var noRepeats = _.filter(timeline, function(tweet){
+					return _.findWhere(favdata, {id: tweet.id_str}) === undefined;
+				});
+				var scores = _.map(noRepeats, function(tweet){
 					var screenName = tweet.user.screen_name;
 					var score = getUserFavCount(screenName, favdata)*100 + tweet.favorite_count + tweet.retweet_count;
 					return {
@@ -543,6 +562,7 @@ var Bot = module.exports = function(config, requser, User){
 	//create+update db
 	that.postRelations = postRelations;
 	that.postDBdata = postDBdata;
+	that.postFavDB = postFavDB;
 	//read db
 	that.getDBTweets = getDBTweets;
 	that.getDBFavs = getDBFavs;

@@ -1,6 +1,9 @@
 <h1>User ID:</h1>
 <p>
-	<button ng-click="fillDB()" ng-disabled="loading">Collect Data</button>
-	<button ng-click="tweet()" ng-disabled="loading">Tweet</button>
+	<a href="/">Main</a>
+	<button ng-click="fillDB()" ng-disabled="loading" ng-hide="hide">Collect Data</button>
+	<button ng-click="tweet()" ng-disabled="loading" ng-hide="hide">Tweet</button>
+	<button ng-click="collectFavs()" ng-disabled="loading" ng-hide="hide">Collect Favs</button>
+	<button ng-click="fav()" ng-disabled="loading" ng-hide="hide">Fav</button>
 	<p>{{message}}</p>
 </p>

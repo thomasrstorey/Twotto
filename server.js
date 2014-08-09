@@ -62,46 +62,11 @@ mongoose.connect(db.url);
 //routes ==================================================================
 require('./app/routes')(app, passport, config, User, Bot);
 
-
+//////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////
 
-app.get('/account', ensureAuthenticated, function(req, res){
-    var username = req.user.username;
-    var postauth = config;
-    postauth.access_token = req.user.token;
-    postauth.access_token_secret = req.user.tokenSecret;
-    user = req.user;
-    if(!app.locals.activeBots.hasOwnProperty(username) || app.locals.activeBots[username] === null){
-        app.locals.activeBots[username] = new Bot(postauth, user, db);
-        app.locals.activeBots[username].updateFriendsArray();
-        console.log("Made a new bot for " + username + "!");
-    } else {
-        console.log(username + " already has a bot running");
-    }
-    res.render('account', { user: req.user,
-                            title: 'Doppeltweeter',
-                            userLoop: app.locals.botLoops[req.user.username]||null });
-});
-
-////////////////////////////////////////////////////////////
-
-app.get('/filldb/:username', ensureAuthenticated, function(req, res){
-    var username = req.params.username;
-    app.locals.activeBots[username].clearDB(function(){
-        app.locals.activeBots[username].getFullUserTimeline(function(tweetsTextArr){
-            app.locals.activeBots[username].getAllRelations(tweetsTextArr, username, function(){
-                console.log("done");
-            });
-        },true, username);
-    });
-    
-
-    res.render('filldb', {title: "Doppeltweeter", user: req.params.username});
-
-});
-
-///////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////
 
 app.get('/launchbot/:username', ensureAuthenticated, function(req, res){
     var username = req.params.username;
@@ -199,10 +164,6 @@ app.get('/checkbot/:username', ensureAuthenticated, function(req, res){
 });
 
 /////////////////////////////////////////////////////////////////////
-
-app.get('/checkbot/:username/:pagenum', ensureAuthenticated, function(req, res){
-
-});
 
 /////////////////////////////////////////////////////////////////////
 

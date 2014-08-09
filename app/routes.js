@@ -80,6 +80,65 @@ module.exports = function(app, passport, config, User, Bot){
 
 	});
 
+	app.post('/app/secured/fav/:username', ensureAuthenticated, function(req, res){
+
+		var username = req.params.username;
+		if(app.locals.activeBots.hasOwnProperty(username)){
+			app.locals.activeBots[username].postFav(function(err, tweetdata){
+				if(err){
+					res.json({ message: "error: " + err});
+				} else {
+					app.locals.activeBots[username].postFavDB(tweetdata, function(err, data){
+						if(err){
+							res.json({ message: "error: " + err});
+						}
+						data.save(function(err){
+							if(err){
+								console.error("Error saving to db: " + err);
+								res.json({ message: "Error"});
+							}
+							res.json({ message: "faved " + tweetdata.id_str + " from " + tweetdata.user.screen_name});
+						});
+						
+					});
+				}
+			});
+		} else {
+			res.json({ message: "error: no user"});
+		}
+
+	});
+
+	app.post('/app/secured/collectFavs/:username', ensureAuthenticated, function(req, res){
+
+		var username = req.params.username;
+		if(app.locals.activeBots.hasOwnProperty(username)){
+			app.locals.activeBots[username].getFavs(function(err, favdata){
+				if(err){
+					res.json({ message: "error: " + err});
+				} else {
+					app.locals.activeBots[username].postDBdata(favdata, 'favorites', username, function(err, data, response){
+						if(err){
+							console.error(err);
+							res.json({ message: "error: " + err});
+						}
+						data.save(function(err){
+							if(err){
+								console.error("Error saving to db: " + err);
+								res.json({ message: "Error"});
+							}
+							res.json({ message: response });
+						});
+					});
+					
+				}
+			}, username);
+		} else {
+			res.json({ message: "error: no user"});
+		}
+
+	});
+
 	 app.get('/app/secured/*', ensureAuthenticated, function(req, res){
   		res.json({ message: 'logged in' });
 	});
@@ -99,5 +158,5 @@ module.exports = function(app, passport, config, User, Bot){
 
 function ensureAuthenticated(req, res, next) {
 	if (req.isAuthenticated()) { return next(); }
-	res.json({ message: 'access denied'});
+	res.json({ message: 'access denied', hide: true});
 };

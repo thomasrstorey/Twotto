@@ -2,12 +2,14 @@ angular.module('UserCtrl', []).controller('UserController', ['$scope', '$rootSco
 	function ($scope, $rootScope, $http) {
 		$scope.user = {};
 		$scope.loading = false;
+		$scope.hide = true;
 
 		function loadUser() {
 			console.log("Hey get a user or whatver");
 			$http.get('/app/secured/id')
 			.success(function(data){
 				$scope.message = data.message || null;
+				$scope.hide = data.hide || false;
 				$scope.user = data.user || null;
 			});
 		};
@@ -26,6 +28,26 @@ angular.module('UserCtrl', []).controller('UserController', ['$scope', '$rootSco
 			console.log("tweet tweet");
 			$scope.loading = true;
 			$http.post('app/secured/tweet/' + $scope.user.twitter.username)
+			.success(function(data){
+				$scope.loading = false;
+				$scope.message = data.message || null;
+			});
+		};
+
+		$scope.fav = function () {
+			console.log("fav");
+			$scope.loading = true;
+			$http.post('app/secured/fav/' + $scope.user.twitter.username)
+			.success(function(data){
+				$scope.loading = false;
+				$scope.message = data.message || null;
+			});
+		};
+
+		$scope.collectFavs = function () {
+			console.log("collect favs");
+			$scope.loading = true;
+			$http.post('app/secured/collectFavs/' + $scope.user.twitter.username)
 			.success(function(data){
 				$scope.loading = false;
 				$scope.message = data.message || null;
