@@ -1,6 +1,6 @@
 <h1>User ID:</h1>
 <p>
-	<button ng-click="fillDB()">Collect Data</button>
-	<button ng-click="tweet()">Tweet</button>
-	<p>{{userid}}</p>
+	<button ng-click="fillDB()" ng-disabled="loading">Collect Data</button>
+	<button ng-click="tweet()" ng-disabled="loading">Tweet</button>
+	<p>{{message}}</p>
 </p>
