@@ -7,9 +7,9 @@
             window.user = <%- JSON.stringify(user) %>;
   </script>
 
-  <button ng-hide="session.isLoggedIn" ng-click="session.facebookLogin()">Login</button>
+  <button class="btn btn-default" ng-hide="session.isLoggedIn" ng-click="session.facebookLogin()">Login</button>
 		<span ng-show="session.isLoggedIn" ng-bind="'Hello ' + session.currentUser.twitter.username"></span>
-		<button ng-show="session.isLoggedIn" ng-click="session.logout()">Logout</button>
+		<button class="btn btn-default" ng-show="session.isLoggedIn" ng-click="session.logout()">Logout</button>
     <div class="container">
 
     	<!--Angular Dynamic Content-->

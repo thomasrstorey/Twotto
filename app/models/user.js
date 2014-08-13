@@ -31,13 +31,22 @@ userSchema.methods.composeTweet = function (){
 				object,
 				action,
 				location;
+	if(this.subjects.length === 0 || this.objects.length === 0 || this.actions.length === 0){
+		return {
+				err: "Error: No relations in database.",
+				message: null
+				};
+	}
 
 	subject = this.randIndex(this.randIndex(this.subjects));
 	object = this.randIndex(this.randIndex(this.objects));
 	action = this.randIndex(this.randIndex(this.actions));
 	location = this.randIndex(this.randIndex(this.locations));
 
-	return subject + " " + action + " " + object;
+	return {
+			err: null,
+			message: subject + " " + action + " " + object
+		   };
 }
 
 module.exports = mongoose.model('User', userSchema);

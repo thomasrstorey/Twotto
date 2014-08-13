@@ -37,6 +37,23 @@ var Bot = module.exports = function(config, requser, User){
 		});
 	};
 
+	var postTweetDB = function(tweetData, callback){
+		User.findOne({ 'twitter.username' : requser.twitter.username}, function(err, userdata){
+			if(err){
+				console.error("Error finding user: " + err);
+				return callback(err, null);
+			}
+			getRelations(tweetData, function(relations){
+				var relationsObject = parseRelations(relations);
+				if(relationsObject.subjects.length > 0) userdata.subjects.push(relationsObject.subjects);
+				if(relationsObject.actions.length > 0) userdata.actions.push(relationsObject.actions);
+				if(relationsObject.objects.length > 0) userdata.objects.push(relationsObject.objects);
+				if(relationsObject.locations.length > 0) userdata.locations.push(relationsObject.locations);
+				return callback(null, userdata);
+			});
+		});
+	};
+
 	var postFavDB = function(tweetdata, callback){
 		User.findOne({ 'twitter.username' : requser.twitter.username}, function(err, userdata){
 			if(err){
@@ -51,7 +68,18 @@ var Bot = module.exports = function(config, requser, User){
 			});
 			return callback(null, userdata);
 		});
-	}
+	};
+
+	var postFriendDB = function(id, callback){
+		User.findOne({ 'twitter.username' : requser.twitter.username}, function(err, userdata){
+			if(err){
+				console.error("Error finding user: " + err);
+				return callback(err, null);
+			}
+			userdata.friends.push(id);
+			return callback(null, userdata);
+		});
+	};
 
 	var postRelations = function(callback){
 		getUserTimeline(function(tweets){
@@ -120,9 +148,12 @@ var Bot = module.exports = function(config, requser, User){
 				return callback(err, null);
 			}
 
-			var tweetString = user.composeTweet(); 
+			var tweetObject = user.composeTweet();
+			if(tweetObject.err){
+				return callback(tweetObject.err, null);
+			} 
 
-			tweetString = tweh.handleEmoji(tweetString);
+			var tweetString = tweh.handleEmoji(tweetObject.message);
 			return callback(null, tweetString);
 		});
 	};
@@ -216,40 +247,38 @@ var Bot = module.exports = function(config, requser, User){
 		});
 	};
 
-	var getFollowers = function(userid, followerids, nextCursor, count, callback){
+	var getFollowers = function(userid, callback, followerids, nextCursor, count){
 		followerids = followerids || [];
+		count = count || 5000;
 		twit.get('followers/ids', {user_id: userid, count: count, cursor: nextCursor}, function(err, followers){
 			if(err){
 				console.log("error getting all followers: " + err);
-				return callback(followerids);
+				return callback(err, null);
 			}
 			followerids.push.apply(followerids, followers.ids);
 			nextCursor = followers.next_cursor_str;
 			if(nextCursor != "0"){
-				getFollowers(userid, followerids, nextCursor, count, callback);
+				getFollowers(userid, callback, followerids, nextCursor, count );
 			} else if(callback){
-				return callback(followerids);
+				return callback(null, followerids);
 			}	
 		});
 	};
 
-	var getFriends = function(userid, friendids, nextCursor, count, callback){
-		console.log("time to get all friends");
+	var getFriends = function(userid, callback, friendids, nextCursor, count){
 		friendids = friendids || [];
 		count = count || 5000;
 		twit.get('friends/ids', {user_id: userid, cursor: nextCursor, count: count, stringify_ids: true}, function(err, friends){
 			if(err){
 				console.log("error getting all friends: " + err);
-				return callback(friendids);
+				return callback(err, null);
 			}
 			friendids.push.apply(friendids, friends.ids);
 			nextCursor = friends.next_cursor_str;
 			if(nextCursor != "0"){
-				console.log("get all friends recurse");
-				getFriends(userid, friendids, nextCursor, count, callback);
+				getFriends(userid, callback, friendids, nextCursor, count);
 			} else if(callback){
-				console.log("get all friends return");
-				return callback(friendids);
+				return callback(null, friendids);
 			}	
 		});
 	};
@@ -295,55 +324,62 @@ var Bot = module.exports = function(config, requser, User){
 		
 	};
 
-	var postRetweet = function(){
-		readHomeTimeline(function(err, timeline){
-			if(err) return handleError(err);
+	var postRetweet = function(callback){
+		console.log("RT");
+		getHomeTimeline(function(err, timeline){
+			if(err) return callback(err, null);
 			var rts = cleanRetweets(timeline);
 			var tweetID = _.sample(rts).id_str;
 			console.log(tweetID);
 			twit.post('statuses/retweet/:id', {id: tweetID}, function(err, res){
 				if(!err){
-					console.log("RETWEETED: \n" + res.text);
+					return callback(null, res);
 				} else{
-					console.log("ERROR: \n" + err.data);
+					return callback(err, null);
 				}
 			});
 		});
 	};
 
-	var postFriend = function(){
-		randomFriend = _.sample(friendsArray);
-		getAllFriends(randomFriend, [], -1, 5000, function(friendFriends){
-			selectedFriends = _.sample(friendFriends, 10);
-			getUsersNumFollowers(selectedFriends, function(fcounts){
-				console.log(fcounts);
-				var friendToAdd = _.max(fcounts, function(item){
-					return item.followers_count;
+	var postFriend = function(callback){
+		getDBFriends(requser.twitter.username, function(err, friendids){
+			randomFriend = _.sample(friendids);
+				getFriends(randomFriend, function(err, friendFriends){
+					if(err){
+						callback(err, null);
+					}
+					var noRepeats = _.reject(friendFriends, function(id){
+						var test = _.findWhere(friendids, id) !== undefined;
+						return test;
+					});
+					selected = _.sample(noRepeats);
+					twit.post('friendships/create', {user_id: selected, follow: true}, function(err, newFollow){
+						if(!err){
+							callback(null, newFollow);
+				   		} else {
+				   			console.log(err);
+				   			callback(err, null);
+				   		}
+				    });
 				});
-				console.log(friendToAdd);
-				twit.post('friendships/create', {user_id: friendToAdd.id_str}, function(err, newFollow){
-					if(!err){
-			    		console.log("Now Following " + newFollow.name + " id: " + newFollow.id_str);
-			   		} else {
-			   			console.log(err);
-			   		}
-			    });
-			});
 		});
+		
 	};
 
 	var getFavInterval = function(callback){
-		twit.get('favorites/list', {count: 200}, function(err, data){
-			if(err){
-				console.log(err);
-				return callback(30000);
-			}
-			var fTime = new Date(data[0].created_at);
-			var lTime = new Date(data[data.length-1].created_at);
+		var myid = requser.twitter.id;
+		twit.get('users/show', {user_id: myid}, function(err, mydata){
+			if(!err){
+				var start = new Date(mydata.created_at);
+				var end = new Date();
 
-			var span = fTime.getTime() - lTime.getTime();
-			var interval = span / data.length;
-			return callback(interval);	
+				var span = end.getTime() - start.getTime();
+				var interval = span / mydata.favourites_count;
+				return callback(interval);
+			} else {
+				console.log(err);
+				return callback(defaultInterval);
+			}
 		});
 	};
 
@@ -362,30 +398,25 @@ var Bot = module.exports = function(config, requser, User){
 				var interval = span / rts.length;
 				return callback(interval);
 			} else{
-				return callback(-1);
+				return callback(defaultInterval);
 			}
 		});
 	};
 
 	var getFollowInterval = function(callback){
-		var friendids = [];
 		var myid = requser.twitter.id;
-		getAllFriends(myid, friendids, -1, 5000, function(frids){
+		twit.get('users/show', {user_id: myid}, function(err, mydata){
+			if(!err){
+				var start = new Date(mydata.created_at);
+				var end = new Date();
 
-			twit.get('users/show', {user_id: myid}, function(err, mydata){
-				if(!err){
-					var start = new Date(mydata.created_at);
-					var end = new Date();
-
-					var span = end.getTime() - start.getTime();
-					var interval = span / frids.length;
-					return callback(interval);
-				} else {
-					console.log(err);
-					return callback(defaultInterval);
-				}
-			});
-
+				var span = end.getTime() - start.getTime();
+				var interval = span / mydata.friends_count;
+				return callback(interval);
+			} else {
+				console.log(err);
+				return callback(defaultInterval);
+			}
 		});
 	};
 
@@ -397,25 +428,6 @@ var Bot = module.exports = function(config, requser, User){
 			var interval = span / data.length;
 			return callback(interval);
 		}, false, false, requser.twitter.username);
-	};
-
-	var getUsersNumFollowers = function(usersIds, callback, fcounts){
-		var followersCounts = fcounts || [];
-		twit.get('users/show', {user_id: usersIds[0], include_entities: false}, function(err, data){
-			if(!err){
-				console.log(data.screen_name);
-				followersCounts.push({screen_name: data.screen_name, followers_count: data.followers_count, id_str: data.id_str});
-			} else {
-				console.log(err);
-			}
-			var remainingids = usersIds.slice(1);
-			if(remainingids.length === 0){
-				return callback(followersCounts);
-			} else {
-				return getUsersNumFollowers(remainingids, callback, followersCounts);
-			}
-			
-		});
 	};
 
 	// UTILITY ==============================================================
@@ -512,7 +524,7 @@ var Bot = module.exports = function(config, requser, User){
 
 	var cleanRetweets = function(tweetArr, cleanArr){
 		cleanArr = cleanArr || [];
-		if(tweetArr[0].retweeted_status){
+		if(tweetArr[0].retweeted_status && tweetArr[0].retweeted_status.retweeted === false){
 			cleanArr.push(tweetArr[0].retweeted_status);
 		}
 		tweetArr = tweetArr.slice(1);
@@ -549,6 +561,7 @@ var Bot = module.exports = function(config, requser, User){
 	that.getFavInterval = getFavInterval;
 	that.getFollowInterval = getFollowInterval;
 	that.getRTInterval = getRTInterval;
+	that.getTweetInterval = getTweetInterval;
 	//
 	//post tweet
 	that.postComposedTweet = postComposedTweet;
@@ -563,6 +576,8 @@ var Bot = module.exports = function(config, requser, User){
 	that.postRelations = postRelations;
 	that.postDBdata = postDBdata;
 	that.postFavDB = postFavDB;
+	that.postFriendDB = postFriendDB;
+	that.postTweetDB = postTweetDB;
 	//read db
 	that.getDBTweets = getDBTweets;
 	that.getDBFavs = getDBFavs;
