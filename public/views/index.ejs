@@ -1,20 +1,22 @@
 <!DOCTYPE html>
-<html lang="en" ng-app="App">
+<html lang="en" xmlns:ng="http://angularjs.org" id="ng-app" ng-app="App">
   <%- include head.ejs %>
   <body>
 
   <script type="text/javascript">
             window.user = <%- JSON.stringify(user) %>;
   </script>
-
-  <button class="btn btn-default" ng-hide="session.isLoggedIn" ng-click="session.facebookLogin()">Login</button>
-		<span ng-show="session.isLoggedIn" ng-bind="'Hello ' + session.currentUser.twitter.username"></span>
-		<button class="btn btn-default" ng-show="session.isLoggedIn" ng-click="session.logout()">Logout</button>
-    <div class="container">
-
+  <div class="container">
+    <div class="row">
+      <ul class="nav nav-pills navbar-right">
+        <li><a href="#" ng-hide="session.isLoggedIn" ng-click="session.facebookLogin()">Login</a></li>
+        <li><a href="#" ng-show="session.isLoggedIn" ng-click="session.logout()">Logout</a></li>
+      </ul>
+    </div>
+    
     	<!--Angular Dynamic Content-->
-    	<div ng-view></div>
+    	<div class="row" ng-view></div>
 
-   </div>
+  </div>
   </body>
 </html>

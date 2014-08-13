@@ -24,17 +24,11 @@ var Bot = module.exports = function(config, requser, User){
 	//retrieve data from db
 	//delete data from db
 
-	var postDBdata = function(data, element, username, callback){
+	var postDBdata = function(data, element, userdata, callback){
 		//takes array data, inserts into arrayType array in 
 		//the username's db, calls the callback when it's done
-		User.findOne({ 'twitter.username' : username}, function(err, userdata){
-			if(err){
-				console.error("Error finding user: " + err);
-				return callback(err, null);
-			}
 			userdata[element] = data;
-			return callback(null, userdata, "data added to " + username + "." + element);
-		});
+			return callback(null, userdata, "data added to " + userdata.twitter.username + "." + element);
 	};
 
 	var postTweetDB = function(tweetData, callback){

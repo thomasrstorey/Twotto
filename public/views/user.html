@@ -1,15 +1,16 @@
-<a href="/">Main</a>
-<h1>Bot</h1>
-<p>
-	<button ng-click="fillDB()" ng-disabled="loading" ng-hide="hide">Collect Data</button>
-	<button class="btn btn-default" ng-click="start()" ng-disabled="loading" ng-hide="render('start')">Start</button>
-	<button class="btn btn-default" ng-click="stop()" ng-disabled="loading" ng-hide="render('stop')">Stop</button>
-	<!--<button ng-click="tweet()" ng-disabled="loading" ng-hide="hide">Tweet</button>
-	<button ng-click="collectFavs()" ng-disabled="loading" ng-hide="hide">Collect Favs</button>
-	<button ng-click="collectFollowers()" ng-disabled="loading" ng-hide="hide">Collect Followers</button>
-	<button ng-click="collectFriends()" ng-disabled="loading" ng-hide="hide">Collect Friends</button>
-	<button ng-click="fav()" ng-disabled="loading" ng-hide="hide">Fav</button>
-	<button ng-click="friend()" ng-disabled="loading" ng-hide="hide">Friend</button>
-	<button ng-click="rt()" ng-disabled="loading" ng-hide="hide">RT</button>-->
+<div class="col-md-2">
+	<ul class="nav nav-pills nav-stacked">
+		<li><a href="/">About</a></li>
+		<li class="active"><a href="/id" ng-show="session.isLoggedIn">User</a></li>
+	</ul>
+	<ul class="nav nav-pills nav-stacked">
+      <li><a href="" ng-click="fillDB()" ng-disabled="loading" ng-hide="hide">Collect Data</a></li>
+      <li><a href="" ng-click="start()" ng-disabled="loading" ng-hide="render('start')">Start</a></li>
+      <li><a href="" ng-click="stop()" ng-disabled="loading" ng-hide="render('stop')">Stop</a></li>
+    </ul>
+</div>
+
+<div class="col-md-8">
+	<h1 ng-bind="session.currentUser.twitter.username"></h1>
 	<p>{{message}}</p>
-</p>
+</div>

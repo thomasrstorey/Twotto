@@ -37,13 +37,18 @@ module.exports = function(app, passport, config, User, Bot){
 	       app.locals.activeBots[username] = new Bot(config, req.user, User);
 	        console.log("Made a new bot for " + username + "!");
 	    } else {
-	        console.log(username + " already has a bot running");
+	        console.log(username + " already has a bot");
 	    }
 	    var botrunning = false;
 	    if(app.locals.botLoops[username]){
 	    	botrunning = true;
 	    }
-  		res.json({ message: req.user.twitter.id,
+	    if(botrunning){
+	    	var message = "Your bot is active."
+	    } else {
+	    	var message = "Your bot is inactive."
+	    }
+  		res.json({ message: message,
   				   user: req.user,
   				   botrunning: botrunning
   				});
@@ -131,30 +136,19 @@ module.exports = function(app, passport, config, User, Bot){
 	});
 
 	app.post('/app/secured/start/:username', ensureAuthenticated, function(req, res){
-
+		console.log("got to the route");
 		var dbInterval = 86400000;
 		var ti = 900000;
 		var username = req.params.username;
-		if(app.locals.botLoops[username] || app.locals.botIntervals[username]){
+		if(app.locals.botLoops[username]){
 			res.json({message: "Bot already running!"});
 		}
 		app.locals.botLoops[username] = [];
-		app.locals.botIntervals[username] = null;
 		if(app.locals.activeBots.hasOwnProperty(username)){
-			/*relationDB(req, res, username, function(err, response){
+			relationDB(req, res, username, function(err, response){
 				if(err){
 					res.json({ message: err });
 				}
-				var cb = function(err, response){
-					if(err){
-						console.error(err);
-					} else {
-						console.log(response);
-					}
-				};
-				var botInterval = setInterval(relationDB, dbInterval, req, res, username, cb);
-				app.locals.botIntervals[username] = botInterval;*/
-				
 				collectFavs(req, res, username, function(err, response){
 					if(err){
 						res.json({ message: err });
@@ -224,7 +218,7 @@ module.exports = function(app, passport, config, User, Bot){
 						});
 					});
 				});
-			//});
+			});
 		} else {
 			res.json({ message: "error: no user",
 					   botrunning: false });
@@ -235,8 +229,6 @@ module.exports = function(app, passport, config, User, Bot){
 		app.locals.botLoops[req.params.username] = clearTimeoutsArray(app.locals.botLoops[req.params.username]);
    		console.log("cleared " + req.params.username + "'s twitter bot loops.");
    		app.locals.botLoops[req.params.username] = null;
-   		clearInterval(app.locals.botIntervals[req.params.username]);
-   		app.locals.botIntervals[req.params.username] = null;
     	res.json({message: "bot stopped",
     			  botrunning: false});
 	});
@@ -259,15 +251,28 @@ module.exports = function(app, passport, config, User, Bot){
 
 	function relationDB(req, res, username, cb){
 		if(app.locals.activeBots.hasOwnProperty(username)){
-			app.locals.activeBots[username].postRelations(function(err, requser){
-				requser.save(function(err){
-					if(err){
-						console.error("Error saving to db: " + err);
-						return cb(err, null);
-					}
-					console.log("done");
-					return cb(null, "done");
-				});
+			console.log("get relations time");
+			User.findOne({ 'twitter.username' : username}, function(err, userdata){
+				if(err){
+					console.error("Error finding user: " + err);
+					return cb(err, null);
+				}
+				if(userdata.subjects.length + userdata.actions.length + userdata.objects.length + userdata.locations.length === 0){
+					app.locals.activeBots[username].postRelations(function(err, requser){
+						requser.save(function(err){
+							if(err){
+								console.error("Error saving to db: " + err);
+								return cb(err, null);
+							}
+							console.log("done");
+							return cb(null, "done");
+						});
+					});
+				} else {
+					console.log("user database already exists.");
+					return cb(null, "Your database already exists.");
+				}
+				
 			});
 		} else {
 			return cb("error: no user", null);
@@ -370,25 +375,37 @@ module.exports = function(app, passport, config, User, Bot){
 
 	function collectFollowers(req, res, username, cb){
 		if(app.locals.activeBots.hasOwnProperty(username)){
-			app.locals.activeBots[username].getFollowers(req.user.twitter.id, function(err, followerids){
+			User.findOne({ 'twitter.username' : username}, function(err, userdata){
 				if(err){
+					console.error("Error finding user: " + err);
 					return cb(err, null);
-				} else {
-					app.locals.activeBots[username].postDBdata(followerids, "followers", username, function(err, data, message){
+				}
+				if(userdata.followers.length === 0){
+					app.locals.activeBots[username].getFollowers(req.user.twitter.id, function(err, followerids){
 						if(err){
 							return cb(err, null);
+						} else {
+							app.locals.activeBots[username].postDBdata(followerids, "followers", userdata, function(err, data, message){
+								if(err){
+									return cb(err, null);
+								}
+								data.save(function(err){
+									if(err){
+										console.error("Error saving collected followers to db: " + err);
+										return cb(err, null);
+									}
+									return cb(null, message);
+								});
+								
+							});
 						}
-						data.save(function(err){
-							if(err){
-								console.error("Error saving collected followers to db: " + err);
-								return cb(err, null);
-							}
-							return cb(null, message);
-						});
-						
 					});
+				} else {
+					console.log("user database already exists.");
+					return cb(null, "done");
 				}
 			});
+			
 		} else {
 			return cb("error: no user", null);
 		}
@@ -396,25 +413,37 @@ module.exports = function(app, passport, config, User, Bot){
 
 	function collectFriends(req, res, username, cb){
 		if(app.locals.activeBots.hasOwnProperty(username)){
-			app.locals.activeBots[username].getFriends(req.user.twitter.id, function(err, friendids){
+			User.findOne({ 'twitter.username' : username}, function(err, userdata){
 				if(err){
+					console.error("Error finding user: " + err);
 					return cb(err, null);
-				} else {
-					app.locals.activeBots[username].postDBdata(friendids, "friends", username, function(err, data, message){
+				}
+				if(userdata.friends.length === 0){
+					app.locals.activeBots[username].getFriends(req.user.twitter.id, function(err, friendids){
 						if(err){
 							return cb(err, null);
+						} else {
+							app.locals.activeBots[username].postDBdata(friendids, "friends", userdata, function(err, data, message){
+								if(err){
+									return cb(err, null);
+								}
+								data.save(function(err){
+									if(err){
+										console.error("Error saving collected friends to db: " + err);
+										return cb(err, null);
+									}
+									return cb(null, message);
+								});
+								
+							});
 						}
-						data.save(function(err){
-							if(err){
-								console.error("Error saving collected friends to db: " + err);
-								return cb(err, null);
-							}
-							return cb(null, message);
-						});
-						
 					});
+				} else {
+					console.log("user database already exists.");
+					return cb(null, "done");
 				}
 			});
+			
 		} else {
 			return cb("error: no user", null);
 		}
@@ -422,26 +451,38 @@ module.exports = function(app, passport, config, User, Bot){
 
 	function collectFavs(req, res, username, cb){
 		if(app.locals.activeBots.hasOwnProperty(username)){
-			app.locals.activeBots[username].getFavs(function(err, favdata){
+			User.findOne({ 'twitter.username' : username}, function(err, userdata){
 				if(err){
+					console.error("Error finding user: " + err);
 					return cb(err, null);
-				} else {
-					app.locals.activeBots[username].postDBdata(favdata, 'favorites', username, function(err, data, response){
-						if(err){
-							console.error(err);
-							return cb(err, null);
-						}
-						data.save(function(err){
-							if(err){
-								console.error("Error saving collected favs to db: " + err);
-								return cb(err, null);
-							}
-							return cb(null, response);
-						});
-					});
-					
 				}
-			}, username);
+				if(userdata.favorites.length === 0){
+					app.locals.activeBots[username].getFavs(function(err, favdata){
+						if(err){
+							return cb(err, null);
+						} else {
+							app.locals.activeBots[username].postDBdata(favdata, 'favorites', userdata, function(err, data, response){
+								if(err){
+									console.error(err);
+									return cb(err, null);
+								}
+								data.save(function(err){
+									if(err){
+										console.error("Error saving collected favs to db: " + err);
+										return cb(err, null);
+									}
+									return cb(null, response);
+								});
+							});
+							
+						}
+					}, username);
+				} else {
+					console.log("user database already exists.");
+					return cb(null, "done");
+				}
+			});
+
 		} else {
 			return cb("error: no user", null);
 		}

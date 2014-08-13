@@ -36,7 +36,6 @@ var usertimeline;
 var app = express();
 app.locals.activeBots = {};
 app.locals.botLoops = {};
-app.locals.botIntervals = {};
 
 // view engine setup =====================================================
 app.set('views', path.join(__dirname, './public/views'));
