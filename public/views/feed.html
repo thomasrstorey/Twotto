@@ -1,0 +1,24 @@
+<div class="col-md-2">
+	<ul class="nav nav-pills nav-stacked">
+		<li><a href="/">About</a></li>
+		<li><a href="/id" ng-show="session.isLoggedIn">User</a></li>
+		<li class="active"><a href="/feed" ng-show="session.isLoggedIn">Feed</a></li>
+	</ul>
+</div>
+
+<div class="col-md-8">
+	<h1>{{user.twitter.username}}</h1>
+	<div class="row">
+		<ul class="nav nav-pills">
+	      <li><button class="btn btn-default" href="" ng-click="prevTweet()" ng-disabled="index === 0">Previous</button></li>
+	      <ul class="nav nav-pills navbar-right">
+	      	<li><button class="btn btn-default" href="" ng-click="nextTweet()" ng-disabled="index === timeline.length - 1">Next</button></li>
+	      </ul>
+	    </ul>
+    </div>
+    <div class="row v-offset4">
+		<div class="col-md-10 col-md-offset-1">
+			<pre>{{analysisObjects[index]}}</pre>
+		</div>
+	</div>
+</div>

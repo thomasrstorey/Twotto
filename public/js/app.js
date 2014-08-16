@@ -1,4 +1,4 @@
-var app = angular.module('App', ['ngRoute', 'angular-loading-bar', 'ngAnimate', 'UserCtrl', 'AppRoutes', 'SessionService'])
+var app = angular.module('App', ['ngRoute', 'angular-loading-bar', 'ngAnimate', 'UserCtrl', 'FeedCtrl', 'AppRoutes', 'SessionService'])
 	.run(['$rootScope', '$window', 'sessionService',
 		function ($rootScope, $window, sessionService) {
 		$rootScope.session = sessionService;

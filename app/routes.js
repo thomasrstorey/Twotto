@@ -54,6 +54,80 @@ module.exports = function(app, passport, config, User, Bot){
   				});
 	});
 
+	app.get('/app/secured/timeline', ensureAuthenticated, function(req, res){
+		var username = req.user.twitter.username;
+		if(app.locals.activeBots.hasOwnProperty(username)){
+			app.locals.activeBots[username].getUserTimeline(function(data){
+				res.json(
+					{
+						message: "Retrieved timeline",
+						timeline: data
+					});
+			}, true, false, username, 200);
+		}
+	});
+
+	app.get('/app/secured/relations/:index', ensureAuthenticated, function(req, res){
+		var username = req.user.twitter.username;
+		var index = req.params.index;
+
+		if(app.locals.activeBots.hasOwnProperty(username)){
+			var input = app.locals.activeBots[username].utl[index].text;
+			console.log(input);
+			app.locals.activeBots[username].getRelations(input, function(data){
+				res.json(
+					{
+						relations: data
+					});
+			});
+		}
+	});
+
+	app.get('/app/secured/keywords/:index', ensureAuthenticated, function(req, res){
+		var username = req.user.twitter.username;
+		var index = req.params.index;
+		if(app.locals.activeBots.hasOwnProperty(username)){
+			var input = app.locals.activeBots[username].utl[index].text;
+			console.log(input);
+			app.locals.activeBots[username].getKeywords(input, function(data){
+				res.json(
+					{
+						keywords: data
+					});
+			});
+		}
+	});
+
+	app.get('/app/secured/entities/:index', ensureAuthenticated, function(req, res){
+		var username = req.user.twitter.username;
+		var index = req.params.index;
+		if(app.locals.activeBots.hasOwnProperty(username)){
+			var input = app.locals.activeBots[username].utl[index].text;
+			console.log(input);
+			app.locals.activeBots[username].getEntities(input, function(data){
+				res.json(
+					{
+						entities: data
+					});
+			});
+		}
+	});
+
+	app.get('/app/secured/sentiment/:index', ensureAuthenticated, function(req, res){
+		var username = req.user.twitter.username;
+		var index = req.params.index;
+		if(app.locals.activeBots.hasOwnProperty(username)){
+			var input = app.locals.activeBots[username].utl[index].text;
+			console.log(input);
+			app.locals.activeBots[username].getSentiment(input, function(data){
+				res.json(
+					{
+						sentiment: data
+					});
+			});
+		}
+	});
+
 	app.post('/app/secured/db/:username', ensureAuthenticated, function(req, res){
 		var username = req.params.username;
 		relationDB(req, res, username, function(err, response){

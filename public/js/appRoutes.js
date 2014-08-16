@@ -5,7 +5,10 @@ angular.module('AppRoutes', []).config(['$routeProvider', '$locationProvider', f
 		}).when('/id', {
 			templateUrl: '../../views/user.html',
 			controller: 'UserController'
-		})
+		}).when('/feed', {
+			templateUrl: '../../views/feed.html',
+			controller: 'FeedController'
+		});
 
 	$locationProvider.html5Mode(true);
 }]);

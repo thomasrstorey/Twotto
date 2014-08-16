@@ -17,6 +17,7 @@ var Bot = module.exports = function(config, requser, User){
 	var defaultInterval = 21600000;
 	var friendsArray;
 	var tweh = new Tweh();
+	var utl = [];
 
 	// DB ===================================================================
 
@@ -158,7 +159,27 @@ var Bot = module.exports = function(config, requser, User){
 
 	var getRelations = function (input, callback){
 		alchemyapi.relations('text', input, {}, function(response){
+			//console.log(JSON.stringify(response,null,4));
 			return callback(response.relations);
+		});
+	};
+
+	var getKeywords = function (input, callback){
+		alchemyapi.keywords('text', input, { 'sentiment':1 }, function(response){
+			return callback(response.keywords);
+		});
+	};
+
+	var getEntities = function (input, callback){
+		alchemyapi.entities('text', input, { 'sentiment':1 }, function(response){
+			console.log("What up I guess " + JSON.stringify(response,null,4));
+			return callback(response.entities);
+		});
+	};
+
+	var getSentiment = function (input, callback){
+		alchemyapi.sentiment('text', input, {}, function(response){
+			return callback(response.docSentiment);
 		});
 	};
 
@@ -189,10 +210,11 @@ var Bot = module.exports = function(config, requser, User){
 		});
 	};
 
-	var getUserTimeline = function (callback, rts, textOnly, screenName, tweetData, maxId, n){
+	var getUserTimeline = function (callback, rts, textOnly, screenName, num, tweetData, maxId, n){
 		//returns up to 3000 texts extracted from user_timeline
 		tweetData = tweetData || [];
 		n = n || 0;
+		num = num || 3000;
 		twit.get('statuses/user_timeline', {screen_name: screenName, count: 200, include_rts: rts, trim_user: true, max_id: maxId}, function(err, res){
 			if(err){
 				console.log("ERROR: " + err);
@@ -206,12 +228,15 @@ var Bot = module.exports = function(config, requser, User){
 				}
 				maxId = _.last(res).id_str;
 			}
-			if(tweetData.length >= 3000 || res.length === 1 || n === 179){
-				
+			if(tweetData.length >= num || res.length === 1 || n === 179){
+				if(!textOnly){
+					utl = tweetData;
+					that.utl = utl;
+				}
 				return callback(tweetData);
 			} else{
 				n++;
-				return getUserTimeline(callback, rts, textOnly, screenName, tweetData, maxId, n);
+				return getUserTimeline(callback, rts, textOnly, screenName, num, tweetData, maxId, n);
 			}
 		}); 
 	};
@@ -580,6 +605,12 @@ var Bot = module.exports = function(config, requser, User){
 	//
 	//get alchemy analysis
 	that.getAllRelations = getAllRelations;
+	that.getKeywords = getKeywords;
+	that.getRelations = getRelations;
+	that.getEntities = getEntities;
+	that.getSentiment = getSentiment;
+
+	that.utl = utl;
 
 	return that;
 }
