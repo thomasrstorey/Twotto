@@ -27,6 +27,7 @@ daemon
 alchemyapi_node
 extras
 public/libs
+log
 
 # Users Environment Variables
 .lock-wscript
