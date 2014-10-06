@@ -14,6 +14,7 @@ var userSchema = mongoose.Schema({
 	locations		: { type : Array , "default" : [] },
 	tweets			: [String],
 	tweetInterval	: Number,
+	rtInterval		: Number,
 	favorites		: { type : Array , "default" : [] },
 	favInterval		: Number,
 	friends			: [String],

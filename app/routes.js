@@ -236,6 +236,7 @@ module.exports = function(app, passport, config, User, Bot){
 								res.json({ message: err });
 							}
 							app.locals.activeBots[username].getTweetInterval(function(twti){
+								console.log("TWEET INTERVAL: " + twti);
 								 (function tweetBehavior(twti){
 								 	tweet(req, res, username, function(err, tweetres){
 								 		if(err){
@@ -246,9 +247,10 @@ module.exports = function(app, passport, config, User, Bot){
 								 	});
 								 	var botLoop = setTimeout(tweetBehavior, twti, twti);
         							app.locals.botLoops[username].push(botLoop);
-								 })(ti);
+								 })(twti);
 							});
 							app.locals.activeBots[username].getRTInterval(function(rti){
+								console.log("RT INTERVAL: " + rti);
 								(function rtBehavior(rti){
 								 	retweet(req, res, username, function(err, rtres){
 										if(err){
@@ -259,9 +261,10 @@ module.exports = function(app, passport, config, User, Bot){
 								 	});
 								 	var botLoop = setTimeout(rtBehavior, rti, rti);
         							app.locals.botLoops[username].push(botLoop);
-								 })(ti);	
+								 })(rti); 
 							});
 							app.locals.activeBots[username].getFavInterval(function(favi){
+								console.log("FAV INTERVAL: " + favi);
 								(function favBehavior(favi){
 								 	fav(req, res, username, function(err, favres){
 										if(err){
@@ -272,9 +275,10 @@ module.exports = function(app, passport, config, User, Bot){
 								 	});
 								 	var botLoop = setTimeout(favBehavior, favi, favi);
         							app.locals.botLoops[username].push(botLoop);
-								 })(ti);		
+								 })(favi); 
 							});
 							app.locals.activeBots[username].getFollowInterval(function(flwi){
+								console.log("FOLLOW INTERVAL: " + flwi);
 								(function followBehavior(flwi){
 								 	befriend(req, res, username, function(err, bfres){
 										if(err){
@@ -285,7 +289,7 @@ module.exports = function(app, passport, config, User, Bot){
 								 	});
 								 	var botLoop = setTimeout(followBehavior, flwi, flwi);
         							app.locals.botLoops[username].push(botLoop);
-								 })(ti);
+								 })(flwi);
 							});
 							res.json({message: "bot started",
 									  botrunning: true});
@@ -332,7 +336,9 @@ module.exports = function(app, passport, config, User, Bot){
 					return cb(err, null);
 				}
 				if(userdata.subjects.length + userdata.actions.length + userdata.objects.length + userdata.locations.length === 0){
+
 					app.locals.activeBots[username].postRelations(function(err, requser){
+
 						requser.save(function(err){
 							if(err){
 								console.error("Error saving to db: " + err);
@@ -353,9 +359,6 @@ module.exports = function(app, passport, config, User, Bot){
 		}
 	};
 
-	function startDBLoop(req, res, username, cb){
-		var botloop = setInterval()
-	};
 
 	function tweet(req, res, username, cb){
 		if(app.locals.activeBots.hasOwnProperty(username)){
@@ -564,6 +567,8 @@ module.exports = function(app, passport, config, User, Bot){
 
 
 };
+
+
 
 
 

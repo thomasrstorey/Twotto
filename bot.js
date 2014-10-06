@@ -76,6 +76,22 @@ var Bot = module.exports = function(config, requser, User){
 		});
 	};
 
+	var postIntervalsDB = function(id, callback){
+		getAllIntervals(function(intervals){
+			User.findOne({ 'twitter.username' : requser.twitter.username}, function(err, userdata){
+				if(err){
+					console.error("Error finding user: " + err);
+					return callback(err, null);
+				}
+				userdata.tweetInterval = intervals.tweetInterval;
+				userdata.favInterval = intervals.favInterval;
+				userdata.rtInterval = intervals.rtInterval;
+				userdata.followInterval = intervals.followInterval;
+				return callback(null, userdata);
+			});
+		});
+	};
+
 	var postRelations = function(callback){
 		getUserTimeline(function(tweets){
 			getAllRelations(tweets, requser.twitter.username, function(relationsObjects){
@@ -404,19 +420,24 @@ var Bot = module.exports = function(config, requser, User){
 
 	var getRTInterval = function(callback){
 		twit.get('statuses/user_timeline', {include_rts: true, count: 200}, function(err, data){
-			var rts = [];
-			for (var i = data.length - 1; i >= 0; i--) {
-				if(data[i].retweeted){
-					rts.push(data[i]);
+			if(!err){
+				var rts = [];
+				for (var i = data.length - 1; i >= 0; i--) {
+					if(data[i].retweeted){
+						rts.push(data[i]);
+					}
+				};
+				if(rts.length >= 2){
+					var start = new Date(rts[0].created_at);
+					var end = new Date(rts[rts.length-1].created_at);
+					var span = end.getTime() - start.getTime();
+					var interval = span / rts.length;
+					return callback(interval);
+				} else{
+					return callback(defaultInterval);
 				}
-			};
-			if(rts.length >= 2){
-				var start = new Date(rts[rts.length-1].created_at);
-				var end = new Date(rts[0].created_at);
-				var span = start.getTime() - end.getTime();
-				var interval = span / rts.length;
-				return callback(interval);
-			} else{
+			} else {
+				console.log(err);
 				return callback(defaultInterval);
 			}
 		});
@@ -447,6 +468,24 @@ var Bot = module.exports = function(config, requser, User){
 			var interval = span / data.length;
 			return callback(interval);
 		}, false, false, requser.twitter.username);
+	};
+
+	var getAllIntervals = function(callback){
+		getTweetInterval(function(twti){
+			getFollowInterval(function(fli){
+				getRTInterval(function(rti){
+					getFavInterval(function(favi){
+						var intervals = {
+							tweetInterval    : twti,
+							followInterval   : fli,
+							rtInterval  : rti,
+							favInterval : favi
+						};
+						return callback(intervals);
+					});
+				});
+			});
+		});
 	};
 
 	// UTILITY ==============================================================
@@ -597,6 +636,7 @@ var Bot = module.exports = function(config, requser, User){
 	that.postFavDB = postFavDB;
 	that.postFriendDB = postFriendDB;
 	that.postTweetDB = postTweetDB;
+	that.postIntervalsDB = postIntervalsDB;
 	//read db
 	that.getDBTweets = getDBTweets;
 	that.getDBFavs = getDBFavs;
@@ -609,6 +649,7 @@ var Bot = module.exports = function(config, requser, User){
 	that.getRelations = getRelations;
 	that.getEntities = getEntities;
 	that.getSentiment = getSentiment;
+	that.getAllIntervals = getAllIntervals;
 
 	that.utl = utl;
 
